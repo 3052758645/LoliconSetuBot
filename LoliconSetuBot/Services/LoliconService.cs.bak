@@ -1,0 +1,147 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
+using System.Text;
+using SkiaSharp;
+using LoliconSetuBot.Models;
+
+namespace LoliconSetuBot.Services;
+
+/// <summary>
+/// Service for fetching anime images from lolicon.app API.
+/// </summary>
+public sealed class LoliconService : IDisposable {
+    private readonly HttpClient _http;
+    private readonly string _cacheDir;
+    private const string ApiUrl = "https://api.lolicon.app/setu/v2";
+    private static readonly JsonSerializerOptions JsonOpts = new() {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        NumberHandling = JsonNumberHandling.AllowReadingFromString
+    };
+
+    public LoliconService(HttpClient http) {
+        _http = http;
+        _http.Timeout = TimeSpan.FromSeconds(45);
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("LoliconSetuBot/2.6");
+        _cacheDir = Path.Combine(AppContext.BaseDirectory, "cache");
+        Directory.CreateDirectory(_cacheDir);
+    }
+
+    public async Task<SetuResult> FetchAsync(string tag, BotConfig config, CancellationToken ct = default, int retry = 0) {
+        const int maxRetries = 3;
+        try {
+            var urlBuilder = BuildUrl(tag, config);
+            var json = await _http.GetStringAsync(urlBuilder, ct);
+            var resp = JsonSerializer.Deserialize<LoliconResponse>(json, JsonOpts);
+
+            if (!string.IsNullOrEmpty(resp?.Error))
+                throw new InvalidOperationException("API error: " + resp.Error);
+            if (resp?.Data == null || resp.Data.Count == 0)
+                throw new InvalidOperationException("No images matched.");
+
+            var data = resp.Data[0];
+            var imageUrl = GetImageUrl(data, config.Size) ?? data.Urls.Original;
+            if (string.IsNullOrEmpty(imageUrl))
+                throw new InvalidOperationException("Image URL is empty.");
+
+            var rawBytes = await _http.GetByteArrayAsync(imageUrl, ct);
+            var processed = await ProcessImageAsync(rawBytes, config);
+            CacheImage(data.Title, processed);
+
+            string info = config.ShowInfo ? FormatInfo(data) : string.Empty;
+
+            return new SetuResult {
+                Data = data,
+                ImageBytes = processed,
+                InfoText = info
+            };
+        } catch (OperationCanceledException) when (retry < maxRetries) {
+            int delay = (int)Math.Pow(2, retry) * 1000;
+            Console.WriteLine("Retry " + (retry + 1) + "/" + maxRetries + ", waiting " + delay + "ms... (cancellation)");
+            await Task.Delay(TimeSpan.FromMilliseconds(delay), ct);
+            return await FetchAsync(tag, config, ct, retry + 1);
+        } catch (Exception ex) when (retry < maxRetries) {
+            int delay = (int)Math.Pow(2, retry) * 1000;
+            Console.WriteLine("Retry " + (retry + 1) + "/" + maxRetries + ", waiting " + delay + "ms... (" + ex.Message + ")");
+            await Task.Delay(TimeSpan.FromMilliseconds(delay), ct);
+            return await FetchAsync(tag, config, ct, retry + 1);
+        }
+    }
+
+    private string BuildUrl(string tag, BotConfig config) {
+        var q = new StringBuilder("?r18=" + (config.R18 ? 2 : 0));
+        q.Append("&size=" + Uri.EscapeDataString(config.Size));
+        q.Append("&proxy=" + Uri.EscapeDataString(config.Proxy));
+        q.Append("&excludeAI=" + (config.ExcludeAI ? "true" : "false"));
+
+        if (!string.IsNullOrEmpty(tag)) {
+            var separators = new[] { ' ', '&', '|' };
+            var tags = tag.Split(separators, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var t in tags)
+                q.Append("&tag=" + Uri.EscapeDataString(t.Trim()));
+        }
+        return ApiUrl + q;
+    }
+
+    private string? GetImageUrl(LoliconData data, string? size) {
+        return size?.ToLowerInvariant() switch {
+            "regular" => data.Urls.Regular,
+            "small" => data.Urls.Small,
+            _ => data.Urls.Original
+        };
+    }
+
+    private static async Task<byte[]> ProcessImageAsync(byte[] bytes, BotConfig config) {
+        if (!config.FlipHorizontal && !config.FlipVertical)
+            return bytes;
+
+        using var inputStream = new MemoryStream(bytes);
+        using var original = SKBitmap.Decode(inputStream);
+        if (original == null) return bytes;
+
+        using var output = new SKBitmap(original.Width, original.Height);
+        using var canvas = new SKCanvas(output);
+
+        var matrix = SKMatrix.CreateIdentity();
+        float cx = original.Width / 2f;
+        float cy = original.Height / 2f;
+
+        if (config.FlipHorizontal)
+            matrix = SKMatrix.Concat(matrix, SKMatrix.CreateScale(-1, 1, cx, cy));
+        if (config.FlipVertical)
+            matrix = SKMatrix.Concat(matrix, SKMatrix.CreateScale(1, -1, cx, cy));
+
+        canvas.SetMatrix(matrix);
+        canvas.DrawBitmap(original, new SKPoint(0, 0), SKSamplingOptions.Default);
+        canvas.Flush();
+
+        using var image = SKImage.FromBitmap(output);
+        using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, 90);
+        using var outStream = new MemoryStream();
+        encoded.SaveTo(outStream);
+        return outStream.ToArray();
+    }
+
+    private void CacheImage(string title, byte[] bytes) {
+        var safeName = string.Join("_", title.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
+        var path = Path.Combine(_cacheDir, safeName + "_" + DateTimeOffset.Now.ToUnixTimeMilliseconds() + ".jpg");
+        File.WriteAllBytes(path, bytes);
+    }
+
+    private static string FormatInfo(LoliconData d) {
+        var sb = new StringBuilder();
+        sb.AppendLine("Title: " + d.Title);
+        sb.AppendLine("Author: " + d.Author);
+        sb.Append("PID: " + d.Pid);
+        return sb.ToString().TrimEnd();
+    }
+
+    public void CleanCache() {
+        if (!Directory.Exists(_cacheDir)) return;
+        foreach (var f in Directory.GetFiles(_cacheDir))
+            try { File.Delete(f); } catch { }
+    }
+
+    public void Dispose() {
+        // _http is owned by the caller, do not dispose
+    }
+}

@@ -1,0 +1,58 @@
+using System.Text.Json.Serialization;
+
+namespace LoliconSetuBot.Models;
+
+public sealed class LoliconResponse {
+    [JsonPropertyName("data")]
+    public List<LoliconData>? Data { get; set; }
+
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+}
+
+public sealed class LoliconData {
+    [JsonPropertyName("pid")]
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    public long Pid { get; set; }
+
+    [JsonPropertyName("uid")]
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    public long Uid { get; set; }
+
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+
+    [JsonPropertyName("author")]
+    public string Author { get; set; } = string.Empty;
+
+    [JsonPropertyName("width")]
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    public long Width { get; set; }
+
+    [JsonPropertyName("height")]
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    public long Height { get; set; }
+
+    [JsonPropertyName("tags")]
+    public List<string> Tags { get; set; } = new();
+
+    [JsonPropertyName("urls")]
+    public LoliconUrls Urls { get; set; } = new();
+}
+
+public sealed class LoliconUrls {
+    [JsonPropertyName("original")]
+    public string? Original { get; set; }
+
+    [JsonPropertyName("regular")]
+    public string? Regular { get; set; }
+
+    [JsonPropertyName("small")]
+    public string? Small { get; set; }
+}
+
+public sealed class SetuResult {
+    public required LoliconData Data { get; init; }
+    public required byte[] ImageBytes { get; init; }
+    public required string InfoText { get; init; }
+}

@@ -1,0 +1,154 @@
+﻿using System.Text;
+using LoliconSetuBot.Models;
+using LoliconSetuBot.Services;
+
+namespace LoliconSetuBot;
+static class Program {
+    private static readonly CancellationTokenSource _cts = new();
+
+    static async Task Main(string[] args) {
+        Console.OutputEncoding = Encoding.UTF8;
+        Console.Title = "Lolicon Bot";
+        Console.ForegroundColor = ConsoleColor.Magenta;
+        Console.WriteLine("Lolicon Bot v2.6 (SkiaSharp + Retry + Async)");
+        Console.ResetColor();
+        Console.WriteLine("Commands:");
+        Console.WriteLine("  来张[标签]涩图   - 获取单张（标签可选）");
+        Console.WriteLine("  无限涩图 / 循环  - 进入无限循环模式（Ctrl+C 停止）");
+        Console.WriteLine("  exit             - 退出程序");
+        Console.WriteLine();
+
+        Console.CancelKeyPress += (s, e) => {
+            e.Cancel = true;
+            _cts.Cancel();
+            Console.WriteLine("[STOP] 正在停止...");
+        };
+
+        var config = BotConfig.Load("config.json");
+        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+        using var service = new LoliconService(httpClient);
+        service.CleanCache();
+
+        string groupId = args.Length > 0 ? args[0] : "default";
+        var cooldowns = new Dictionary<string, DateTimeOffset>();
+
+        while (!_cts.Token.IsCancellationRequested) {
+            Console.Write("> ");
+            var input = (await Console.In.ReadLineAsync())?.Trim();
+            if (string.IsNullOrEmpty(input)) continue;
+
+            if (input is "exit" or "quit") {
+                break;
+            } else if (input is "无限涩图" or "循环") {
+                await RunInfiniteMode(config, cooldowns, groupId, service);
+            } else if (input.StartsWith("来张") && input.EndsWith("涩图") && input.Length >= 4) {
+                await RunSingleFetch(input, config, cooldowns, groupId, service);
+            } else {
+                Console.WriteLine("[ERROR] 未知指令，请输入: 来张[标签]涩图 / 无限涩图 / exit");
+            }
+        }
+
+        Console.WriteLine("[INFO] 再见！");
+    }
+
+    private static async Task RunInfiniteMode(BotConfig config, Dictionary<string, DateTimeOffset> cooldowns, string groupId, LoliconService service) {
+        Console.WriteLine("[INFO] 进入无限涩图模式，按 Ctrl+C 停止...");
+        int errorCount = 0;
+        bool first = true;
+
+        while (!_cts.Token.IsCancellationRequested) {
+            try {
+                await ApplyCooldown(cooldowns, groupId, config);
+
+                // Print blank line between results
+                if (!first) {
+                    Console.WriteLine();
+                }
+                first = false;
+
+                var result = await service.FetchAsync("", config, _cts.Token);
+                if (!string.IsNullOrEmpty(result.InfoText)) {
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.WriteLine(result.InfoText);
+                    Console.ResetColor();
+                }
+                Console.WriteLine("[IMAGE] 大小: " + (result.ImageBytes.Length / 1024) + " KB");
+                cooldowns[groupId] = DateTimeOffset.Now;
+                errorCount = 0;
+
+                if (config.AutoRevoke && config.RevokeDelay > 0) {
+                    Console.WriteLine("[REVOKE] " + config.RevokeDelay + "ms 后撤回...");
+                    await Task.Delay(config.RevokeDelay, _cts.Token);
+                    Console.WriteLine("[REVOKE] 撤回指令已执行（模拟）");
+                }
+            } catch (TaskCanceledException) {
+                break;
+            } catch (OperationCanceledException) {
+                break;
+            } catch (Exception ex) {
+                errorCount++;
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("[ERROR] 错误 (" + errorCount + "): " + ex.Message);
+                Console.ResetColor();
+                if (errorCount > 5) {
+                    Console.WriteLine("[WARN] 连续错误过多，暂停 10 秒...");
+                    await Task.Delay(TimeSpan.FromSeconds(10), _cts.Token);
+                    errorCount = 0;
+                }
+            }
+
+            if (!_cts.Token.IsCancellationRequested)
+                await Task.Delay(1500, _cts.Token);
+        }
+        Console.WriteLine("[INFO] 无限循环已停止。");
+    }
+
+    private static async Task RunSingleFetch(string input, BotConfig config, Dictionary<string, DateTimeOffset> cooldowns, string groupId, LoliconService service) {
+        var tagStart = 2;
+        var tagLen = input.Length - 6;
+        var tag = tagLen > 0 ? input.Substring(tagStart, tagLen).Trim() : "";
+
+        try {
+            await ApplyCooldown(cooldowns, groupId, config);
+
+            var result = await service.FetchAsync(tag, config, _cts.Token);
+            if (!string.IsNullOrEmpty(result.InfoText)) {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine(result.InfoText);
+                Console.ResetColor();
+            }
+            Console.WriteLine("[IMAGE] 大小: " + (result.ImageBytes.Length / 1024) + " KB");
+            Console.WriteLine();
+            cooldowns[groupId] = DateTimeOffset.Now;
+            if (config.AutoRevoke && config.RevokeDelay > 0) {
+                Console.WriteLine("[REVOKE] " + config.RevokeDelay + "ms 后撤回...");
+                await Task.Delay(config.RevokeDelay, _cts.Token);
+                Console.WriteLine("[REVOKE] 撤回指令已执行（模拟）");
+            }
+        } catch (TaskCanceledException) {
+            // HttpClient timeout or manual cancel via token
+        } catch (OperationCanceledException) {
+            // 用户取消
+        } catch (Exception ex) {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("[ERROR] " + ex.Message);
+            Console.ResetColor();
+        }
+    }
+
+    private static async Task ApplyCooldown(Dictionary<string, DateTimeOffset> cooldowns, string groupId, BotConfig config) {
+        if (config.CoolDown <= 0) return;
+        if (cooldowns.TryGetValue(groupId, out var last)) {
+            int remain = config.CoolDown - (int)(DateTimeOffset.Now - last).TotalSeconds;
+            if (remain > 0) {
+                Console.WriteLine("[COOLDOWN] 冷却中，还需 " + remain + " 秒");
+                try {
+                    await Task.Delay(TimeSpan.FromSeconds(remain), _cts.Token);
+                } catch (TaskCanceledException) {
+                } catch (OperationCanceledException) {
+                }
+            }
+        }
+    }
+
+}

@@ -1,0 +1,46 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace LoliconSetuBot.Models;
+
+/// <summary>
+/// Bot configuration loaded from config.json.
+/// </summary>
+public sealed class BotConfig {
+    public bool Enabled { get; set; } = true;
+    public bool ShowInfo { get; set; } = true;
+    public bool ExcludeAI { get; set; } = true;
+    public bool FlipHorizontal { get; set; } = true;
+    public bool FlipVertical { get; set; } = false;
+    public bool AutoRevoke { get; set; } = false;
+    public int RevokeDelay { get; set; } = 5000;
+    public int CoolDown { get; set; } = 0;
+    public bool R18 { get; set; } = false;
+    public string Proxy { get; set; } = "i.pixiv.re";
+    public string Size { get; set; } = "original";
+
+    private static readonly JsonSerializerOptions JsonOpts = new() {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true
+    };
+
+    public static BotConfig Load(string filePath) {
+        if (!File.Exists(filePath)) {
+            var cfg = new BotConfig();
+            File.WriteAllText(filePath, JsonSerializer.Serialize(cfg, JsonOpts));
+            return cfg;
+        }
+        try {
+            var deserialized = JsonSerializer.Deserialize<BotConfig>(File.ReadAllText(filePath), JsonOpts);
+            return deserialized ?? new BotConfig();
+        } catch {
+            var fallback = new BotConfig();
+            File.WriteAllText(filePath, JsonSerializer.Serialize(fallback, JsonOpts));
+            return fallback;
+        }
+    }
+
+    public void Save(string filePath) {
+        File.WriteAllText(filePath, JsonSerializer.Serialize(this, JsonOpts));
+    }
+}

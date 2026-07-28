@@ -1,0 +1,30 @@
+# Build results
+[Oo]bj/
+[Bb]in/
+*.dll
+*.exe
+*.pdb
+*.log
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# NuGet
+nuget.config
+*.nupkg
+**/packages/*
+
+# Cache
+cache/
+
+# Config
+config.json
+
+# OS
+.DS_Store
+Thumbs.db

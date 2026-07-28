@@ -1,19 +1,21 @@
-﻿// LoliconSetuBot - 萌娘图画机器人
-// 文件说明：程序入口，处理控制台指令和用户交互
-// 每行代码旁边附带中文注释说明用途
-
-using System.Text;
+﻿using System.Text;
 using LoliconSetuBot.Models;
 using LoliconSetuBot.Services;
 
 namespace LoliconSetuBot;
 
-// 程序主类：控制台程序的入口点，处理命令解析和运行模式
+/// <summary>
+/// 程序主类：控制台程序的入口点，处理命令解析和运行模式
+/// </summary>
 static class Program {
     // 取消令牌源，用于全局控制程序停止（Ctrl+C 时触发）
     private static readonly CancellationTokenSource _cts = new();
 
-    // 程序入口点（主函数）：初始化控制台、加载配置、进入命令循环
+    /// <summary>
+    /// 程序入口点（主函数）：初始化控制台、加载配置、进入命令循环
+    /// </summary>
+    /// <param name="args"></param>
+    /// <returns></returns>
     static async Task Main(string[] args) {
         // 设置控制台输出编码为 UTF-8，确保中文字符正常显示
         Console.OutputEncoding = Encoding.UTF8;
@@ -21,7 +23,7 @@ static class Program {
         Console.Title = "Lolicon Bot";
         // 设置启动信息颜色为紫色
         Console.ForegroundColor = ConsoleColor.Magenta;
-        Console.WriteLine("Lolicon Bot v2.6 (SkiaSharp + Retry + Async)");
+        Console.WriteLine("Lolicon Bot v1.0 (SkiaSharp + Retry + Async)");
         // 恢复默认颜色
         Console.ResetColor();
         // 打印可用指令说明
@@ -79,7 +81,14 @@ static class Program {
         Console.WriteLine("[INFO] 再见！");
     }
 
-    // 无限循环模式：持续获取并打印图片信息，直到用户取消
+    /// <summary>
+    /// 无限循环模式：持续获取并打印图片信息，直到用户取消
+    /// </summary>
+    /// <param name="config"></param>
+    /// <param name="cooldowns"></param>
+    /// <param name="groupId"></param>
+    /// <param name="service"></param>
+    /// <returns></returns>
     private static async Task RunInfiniteMode(BotConfig config, Dictionary<string, DateTimeOffset> cooldowns, string groupId, LoliconService service) {
         // 提示用户进入无限模式
         Console.WriteLine("[INFO] 进入无限涩图模式，按 Ctrl+C 停止...");
@@ -147,7 +156,15 @@ static class Program {
         Console.WriteLine("[INFO] 无限循环已停止。");
     }
 
-    // 单张获取模式：解析输入指令获取指定标签的图片，仅执行一次
+    /// <summary>
+    /// 单张获取模式：解析输入指令获取指定标签的图片，仅执行一次
+    /// </summary>
+    /// <param name="input"></param>
+    /// <param name="config"></param>
+    /// <param name="cooldowns"></param>
+    /// <param name="groupId"></param>
+    /// <param name="service"></param>
+    /// <returns></returns>
     private static async Task RunSingleFetch(string input, BotConfig config, Dictionary<string, DateTimeOffset> cooldowns, string groupId, LoliconService service) {
         // 标签起始位置：跳过 "来张" 2 个字符
         var tagStart = 2;
@@ -191,7 +208,13 @@ static class Program {
         }
     }
 
-    // 应用冷却时间：检查并等待冷却时间，防止请求过于频繁
+    /// <summary>
+    /// 应用冷却时间：检查并等待冷却时间，防止请求过于频繁
+    /// </summary>
+    /// <param name="cooldowns"></param>
+    /// <param name="groupId"></param>
+    /// <param name="config"></param>
+    /// <returns></returns>
     private static async Task ApplyCooldown(Dictionary<string, DateTimeOffset> cooldowns, string groupId, BotConfig config) {
         // 如果冷却时间配置为 0 则不限制
         if (config.CoolDown <= 0) return;

@@ -1,8 +1,4 @@
-﻿// LoliconSetuBot - 萌娘图画机器人
-// 文件说明：从 lolicon.app API 获取插画的服务类
-// 每行代码旁边附带中文注释说明用途
-
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 using System.Text.Json;
 using System.Text;
 using SkiaSharp;
@@ -10,7 +6,9 @@ using LoliconSetuBot.Models;
 
 namespace LoliconSetuBot.Services;
 
-// 插画获取服务：负责调用 lolicon.app API、处理图片、缓存图片等核心功能
+/// <summary>
+/// 插画获取服务：负责调用 lolicon.app API、处理图片、缓存图片等核心功能
+/// </summary>
 public sealed class LoliconService : IDisposable {
     // HTTP 客户端，用于发起网络请求
     private readonly HttpClient _http;
@@ -24,7 +22,10 @@ public sealed class LoliconService : IDisposable {
         NumberHandling = JsonNumberHandling.AllowReadingFromString
     };
 
-    // 构造函数：初始化服务，设置 HTTP 超时、User-Agent，并创建缓存目录
+    /// <summary>
+    /// 构造函数：初始化服务，设置 HTTP 超时、User-Agent，并创建缓存目录
+    /// </summary>
+    /// <param name="http"></param>
     public LoliconService(HttpClient http) {
         _http = http;
         // 设置 HTTP 请求超时时间为 45 秒
@@ -37,7 +38,15 @@ public sealed class LoliconService : IDisposable {
         Directory.CreateDirectory(_cacheDir);
     }
 
-    // 获取插画（核心方法）：根据标签和配置从 API 获取插画，支持自动重试（最多 3 次）
+    /// <summary>
+    /// 获取插画（核心方法）：根据标签和配置从 API 获取插画，支持自动重试（最多 3 次）
+    /// </summary>
+    /// <param name="tag"></param>
+    /// <param name="config"></param>
+    /// <param name="ct"></param>
+    /// <param name="retry"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException"></exception>
     public async Task<SetuResult> FetchAsync(string tag, BotConfig config, CancellationToken ct = default, int retry = 0) {
         const int maxRetries = 3;
         try {
@@ -94,7 +103,12 @@ public sealed class LoliconService : IDisposable {
         }
     }
 
-    // 构建 API 请求 URL：根据标签和配置拼接完整的 API 请求参数
+    /// <summary>
+    /// 构建 API 请求 URL：根据标签和配置拼接完整的 API 请求参数
+    /// </summary>
+    /// <param name="tag"></param>
+    /// <param name="config"></param>
+    /// <returns></returns>
     private string BuildUrl(string tag, BotConfig config) {
         // 基础参数：r18（0=排除、1=仅成人、2=包含成人）
         var q = new StringBuilder("?r18=" + (config.R18 ? 2 : 0));
@@ -116,7 +130,12 @@ public sealed class LoliconService : IDisposable {
         return ApiUrl + q;
     }
 
-    // 获取指定尺寸的图片 URL：根据尺寸参数返回对应的 URL，默认为原始尺寸
+    /// <summary>
+    /// 获取指定尺寸的图片 URL：根据尺寸参数返回对应的 URL，默认为原始尺寸
+    /// </summary>
+    /// <param name="data"></param>
+    /// <param name="size"></param>
+    /// <returns></returns>
     private string? GetImageUrl(LoliconData data, string? size) {
         return size?.ToLowerInvariant() switch {
             "regular" => data.Urls.Regular,
@@ -125,7 +144,12 @@ public sealed class LoliconService : IDisposable {
         };
     }
 
-    // 处理图片（翻转）：根据配置对图片进行水平/垂直翻转处理
+    /// <summary>
+    /// 处理图片（翻转）：根据配置对图片进行水平/垂直翻转处理
+    /// </summary>
+    /// <param name="bytes"></param>
+    /// <param name="config"></param>
+    /// <returns></returns>
     private static async Task<byte[]> ProcessImageAsync(byte[] bytes, BotConfig config) {
         // 如果不需要翻转，直接返回原始数据
         if (!config.FlipHorizontal && !config.FlipVertical)
@@ -166,7 +190,11 @@ public sealed class LoliconService : IDisposable {
         return outStream.ToArray();
     }
 
-    // 缓存图片到本地：将图片保存到 cache 目录，文件名包含标题和时间戳
+    /// <summary>
+    /// 缓存图片到本地：将图片保存到 cache 目录，文件名包含标题和时间戳
+    /// </summary>
+    /// <param name="title"></param>
+    /// <param name="bytes"></param>
     private void CacheImage(string title, byte[] bytes) {
         // 移除文件名中的非法字符
         var safeName = string.Join("_", title.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
@@ -176,7 +204,11 @@ public sealed class LoliconService : IDisposable {
         File.WriteAllBytes(path, bytes);
     }
 
-    // 格式化图片信息文本：将插画数据格式化为可读的信息字符串（标题、作者、PID）
+    /// <summary>
+    /// 格式化图片信息文本：将插画数据格式化为可读的信息字符串（标题、作者、PID）
+    /// </summary>
+    /// <param name="d"></param>
+    /// <returns></returns>
     private static string FormatInfo(LoliconData d) {
         var sb = new StringBuilder();
         sb.AppendLine("Title: " + d.Title);
@@ -185,14 +217,18 @@ public sealed class LoliconService : IDisposable {
         return sb.ToString().TrimEnd();
     }
 
-    // 清理缓存：删除 cache 目录中的所有缓存图片文件
+    /// <summary>
+    /// 清理缓存：删除 cache 目录中的所有缓存图片文件
+    /// </summary>
     public void CleanCache() {
         if (!Directory.Exists(_cacheDir)) return;
         foreach (var f in Directory.GetFiles(_cacheDir))
             try { File.Delete(f); } catch { }
     }
 
-    // 资源释放：_http 由调用方管理，此处不释放
+    /// <summary>
+    /// 资源释放：_http 由调用方管理，此处不释放
+    /// </summary>
     public void Dispose() {
         // _http is owned by the caller, do not dispose
     }

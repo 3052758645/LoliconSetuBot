@@ -1,11 +1,10 @@
-﻿// LoliconSetuBot - 萌娘图画机器人：API 返回数据的模型定义
-// 每行代码旁边附带中文注释说明用途
-
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace LoliconSetuBot.Models;
 
-// Lolicon API 返回响应模型：表示从 lolicon.app API 收到的 JSON 响应的数据结构
+/// <summary>
+/// Lolicon API 返回响应模型：表示从 lolicon.app API 收到的 JSON 响应的数据结构
+/// </summary>
 public sealed class LoliconResponse {
     // JSON 字段 "data" 映射到 Data 属性，图片数据列表，可能为空（null）
     [JsonPropertyName("data")]
@@ -16,7 +15,9 @@ public sealed class LoliconResponse {
     public string? Error { get; set; }
 }
 
-// 单张图片数据模型：存储从 API 获取的单张插画详细信息
+/// <summary>
+/// 单张图片数据模型：存储从 API 获取的单张插画详细信息
+/// </summary>
 public sealed class LoliconData {
     // 插画作品 ID，允许从字符串解析数字
     [JsonPropertyName("pid")]
@@ -55,7 +56,9 @@ public sealed class LoliconData {
     public LoliconUrls Urls { get; set; } = new();
 }
 
-// 图片 URL 模型：存储同一张插画的不同尺寸链接
+/// <summary>
+/// 图片 URL 模型：存储同一张插画的不同尺寸链接
+/// </summary>
 public sealed class LoliconUrls {
     // 原始全尺寸图片链接
     [JsonPropertyName("original")]
@@ -70,7 +73,9 @@ public sealed class LoliconUrls {
     public string? Small { get; set; }
 }
 
-// 涩图获取结果模型：封装一次完整的图片获取结果，包含数据和图片二进制数据
+/// <summary>
+/// 涩图获取结果模型：封装一次完整的图片获取结果，包含数据和图片二进制数据
+/// </summary>
 public sealed class SetuResult {
     // 插画详细数据（标题、作者、尺寸等）
     public required LoliconData Data { get; init; }

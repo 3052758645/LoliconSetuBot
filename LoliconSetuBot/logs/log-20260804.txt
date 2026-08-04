@@ -1,1 +1,31 @@
 2026-08-04 09:48:54.981 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 12:38:01.888 +08:00 [FTL] 程序异常终止
+System.InvalidOperationException: Unbalanced markup stack. Did you forget to close a tag?
+   at Spectre.Console.MarkupParser.Parse(String text, Style style) in /_/src/Spectre.Console/Internal/Text/Markup/MarkupParser.cs:line 55
+   at Spectre.Console.AnsiConsoleExtensions.Markup(IAnsiConsole console, String value) in /_/src/Spectre.Console/Extensions/AnsiConsoleExtensions.Markup.cs:line 77
+   at Spectre.Console.AnsiConsoleExtensions.MarkupLine(IAnsiConsole console, String value) in /_/src/Spectre.Console/Extensions/AnsiConsoleExtensions.Markup.cs:line 117
+   at Spectre.Console.AnsiConsole.MarkupLine(String value) in /_/src/Spectre.Console/AnsiConsole.Markup.cs:line 81
+   at LoliconSetuBot.Program.DrawBanner() in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 91
+   at LoliconSetuBot.Program.Main(String[] args) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 41
+2026-08-04 12:54:14.441 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 12:54:14.666 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E8%8A%99%E5%AE%81%E5%A8%9C
+2026-08-04 12:54:16.054 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2024/11/02/00/00/18/123905547_p0.png
+2026-08-04 12:55:10.529 +08:00 [ERR] 获取图片失败
+System.IO.IOException: 句柄无效。
+   at System.ConsolePal.GetBufferInfo(Boolean throwOnNoConsole, Boolean& succeeded)
+   at System.ConsolePal.get_WindowWidth()
+   at LoliconSetuBot.Program.DownloadWithProgress(LoliconService service, LoliconData data, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 319
+   at LoliconSetuBot.Program.RunSingleFetch(String tag, BotConfig config, Dictionary`2 cooldowns, String groupId, LoliconService service, Boolean quiet) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 290
+2026-08-04 12:55:10.558 +08:00 [INF] 再见！
+2026-08-04 12:58:01.638 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 12:58:01.882 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 12:58:04.009 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2023/08/23/22/43/37/111100165_p0.jpg
+2026-08-04 12:58:15.704 +08:00 [INF] 再见！
+2026-08-04 12:59:04.439 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 12:59:04.671 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 12:59:07.809 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2025/05/29/00/29/29/130920853_p0.png
+2026-08-04 12:59:22.137 +08:00 [INF] 再见！
+2026-08-04 12:59:29.220 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 12:59:29.561 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 12:59:32.431 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2022/08/20/14/51/41/100625434_p3.jpg
+2026-08-04 13:00:13.160 +08:00 [INF] 再见！

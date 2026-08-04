@@ -1,0 +1,198 @@
+2026-08-04 10:50:14.433 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 10:50:14.511 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false
+2026-08-04 10:50:15.949 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2019/01/15/00/14/58/72668666_p0.jpg
+2026-08-04 10:50:18.340 +08:00 [ERR] 测试失败
+System.Net.Http.HttpRequestException: Response status code does not indicate success: 404 (Not Found).
+   at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at LoliconSetuBot.Services.LoliconService.DownloadImageAsync(LoliconData data, BotConfig config, CancellationToken ct, IProgress`1 progress) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Services\LoliconService.cs:line 231
+   at LoliconSetuBot.Program.<>c__DisplayClass8_0.<<DownloadWithProgress>b__0>d.MoveNext() in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 221
+--- End of stack trace from previous location ---
+   at Spectre.Console.Progress.<>c__DisplayClass32_0`1.<<StartAsync>b__0>d.MoveNext() in /_/src/Spectre.Console/Live/Progress/Progress.cs:line 138
+--- End of stack trace from previous location ---
+   at Spectre.Console.Internal.DefaultExclusivityMode.RunAsync[T](Func`1 func) in /_/src/Spectre.Console/Internal/DefaultExclusivityMode.cs:line 40
+   at Spectre.Console.Progress.StartAsync[T](Func`2 action) in /_/src/Spectre.Console/Live/Progress/Progress.cs:line 121
+   at LoliconSetuBot.Program.DownloadWithProgress(LoliconService service, LoliconData data, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 209
+   at LoliconSetuBot.Program.RunTestAsync(String tag) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 282
+2026-08-04 10:50:32.506 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 10:50:32.591 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%22%E5%8E%9F%E7%A5%9E%22
+2026-08-04 10:50:33.747 +08:00 [WRN] API 返回无效响应，不再重试: No images matched.
+2026-08-04 10:50:33.750 +08:00 [ERR] 测试失败
+System.InvalidOperationException: No images matched.
+   at LoliconSetuBot.Services.LoliconService.ExecuteResolve(String tag, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Services\LoliconService.cs:line 138
+   at LoliconSetuBot.Services.LoliconService.ResolveAsync(String tag, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Services\LoliconService.cs:line 59
+   at LoliconSetuBot.Program.RunTestAsync(String tag) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 278
+2026-08-04 10:51:01.122 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 10:51:01.198 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E7%A2%A7%E8%93%9D%E8%88%AA%E7%BA%BF
+2026-08-04 10:51:03.131 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2026/04/05/01/08/10/143155116_p0.png
+2026-08-04 10:51:11.268 +08:00 [INF] 测试完成
+2026-08-04 10:58:06.878 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 10:58:06.952 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E7%A2%A7%E8%93%9D%E8%88%AA%E7%BA%BF
+2026-08-04 10:58:09.248 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2025/11/01/15/21/00/136962534_p0.jpg
+2026-08-04 10:58:36.534 +08:00 [INF] 测试完成
+2026-08-04 11:01:29.435 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:01:29.513 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E7%A2%A7%E8%93%9D%E8%88%AA%E7%BA%BF
+2026-08-04 11:01:31.744 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2020/08/28/18/05/44/83988128_p0.png
+2026-08-04 11:01:44.162 +08:00 [INF] 测试完成
+2026-08-04 11:04:44.394 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:04:44.474 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E7%A2%A7%E8%93%9D%E8%88%AA%E7%BA%BF
+2026-08-04 11:04:46.400 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2021/01/13/21/06/29/87028907_p0.png
+2026-08-04 11:04:52.581 +08:00 [INF] 测试完成
+2026-08-04 11:05:54.702 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:05:54.781 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 11:05:56.977 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2022/01/14/17/39/31/95518997_p0.jpg
+2026-08-04 11:06:04.294 +08:00 [INF] 测试完成
+2026-08-04 11:07:54.543 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:07:54.623 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 11:07:56.732 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2022/01/14/19/07/12/95520701_p0.jpg
+2026-08-04 11:08:03.538 +08:00 [INF] 测试完成
+2026-08-04 11:20:45.125 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:20:45.197 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E7%A2%A7%E8%93%9D%E8%88%AA%E7%BA%BF
+2026-08-04 11:20:47.778 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2023/06/01/00/07/15/108613327_p0.jpg
+2026-08-04 11:20:50.325 +08:00 [INF] 测试完成
+2026-08-04 11:21:15.830 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:21:15.905 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 11:21:19.983 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2021/09/26/18/36/25/93034665_p0.jpg
+2026-08-04 11:21:31.690 +08:00 [INF] 测试完成
+2026-08-04 11:21:57.267 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:21:57.340 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 11:21:59.374 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2025/03/29/22/43/26/128741695_p0.png
+2026-08-04 11:22:22.609 +08:00 [INF] 测试完成
+2026-08-04 11:28:15.511 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:28:15.592 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E7%A2%A7%E8%93%9D%E8%88%AA%E7%BA%BF
+2026-08-04 11:28:17.545 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2021/07/24/00/00/23/91449969_p0.jpg
+2026-08-04 11:29:47.732 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:29:47.807 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E7%A2%A7%E8%93%9D%E8%88%AA%E7%BA%BF
+2026-08-04 11:29:49.486 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2018/11/26/01/40/10/71837474_p0.jpg
+2026-08-04 11:29:58.296 +08:00 [INF] 测试完成
+2026-08-04 11:30:42.914 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:30:42.986 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 11:30:45.114 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2025/07/03/00/00/07/132239645_p0.jpg
+2026-08-04 11:31:12.908 +08:00 [INF] 测试完成
+2026-08-04 11:31:49.518 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:31:49.594 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 11:31:51.676 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2022/12/09/20/00/08/103467248_p0.jpg
+2026-08-04 11:31:55.791 +08:00 [INF] 测试完成
+2026-08-04 11:38:27.254 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:38:27.326 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 11:38:29.661 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2022/05/30/05/16/42/98704801_p0.jpg
+2026-08-04 11:38:46.976 +08:00 [INF] 测试完成
+2026-08-04 11:38:57.878 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:38:57.948 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 11:39:00.302 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2021/04/24/08/00/00/89350884_p0.jpg
+2026-08-04 11:39:03.442 +08:00 [INF] 测试完成
+2026-08-04 11:39:13.338 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:39:13.411 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 11:39:15.475 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2021/12/05/00/00/20/94568122_p1.jpg
+2026-08-04 11:39:26.997 +08:00 [INF] 测试完成
+2026-08-04 11:40:37.893 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:40:37.980 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 11:40:40.626 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2021/06/27/04/17/12/90836130_p0.jpg
+2026-08-04 11:41:35.428 +08:00 [INF] 测试完成
+2026-08-04 11:42:15.500 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:42:15.576 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 11:42:17.690 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2022/07/13/00/00/04/99684656_p0.jpg
+2026-08-04 11:42:42.463 +08:00 [INF] 测试完成
+2026-08-04 11:53:26.113 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:53:26.185 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 11:53:28.289 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2022/10/23/00/00/15/102151425_p0.jpg
+2026-08-04 11:53:41.412 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:53:41.485 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 11:53:43.524 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2023/04/16/12/00/09/107223486_p0.jpg
+2026-08-04 11:54:48.505 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:54:48.579 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 11:54:50.667 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2021/03/05/17/52/28/88229546_p0.jpg
+2026-08-04 11:55:21.779 +08:00 [ERR] 测试失败
+System.InvalidOperationException: Encountered malformed markup tag at position 7.
+   at Spectre.Console.MarkupTokenizer.ReadMarkup() in /_/src/Spectre.Console/Internal/Text/Markup/MarkupTokenizer.cs:line 192
+   at Spectre.Console.MarkupTokenizer.MoveNext() in /_/src/Spectre.Console/Internal/Text/Markup/MarkupTokenizer.cs:line 27
+   at Spectre.Console.MarkupParser.Parse(String text, Style style) in /_/src/Spectre.Console/Internal/Text/Markup/MarkupParser.cs:line 19
+   at Spectre.Console.AnsiConsoleExtensions.Markup(IAnsiConsole console, String value) in /_/src/Spectre.Console/Extensions/AnsiConsoleExtensions.Markup.cs:line 77
+   at Spectre.Console.AnsiConsoleExtensions.MarkupLine(IAnsiConsole console, String value) in /_/src/Spectre.Console/Extensions/AnsiConsoleExtensions.Markup.cs:line 117
+   at Spectre.Console.AnsiConsole.MarkupLine(String value) in /_/src/Spectre.Console/AnsiConsole.Markup.cs:line 81
+   at LoliconSetuBot.Program.DownloadWithProgress(LoliconService service, LoliconData data, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 232
+   at LoliconSetuBot.Program.RunTestAsync(String tag) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 305
+2026-08-04 11:55:36.084 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 11:55:36.157 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 11:55:38.248 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2021/10/24/18/30/48/93655526_p0.jpg
+2026-08-04 11:55:59.080 +08:00 [ERR] 测试失败
+System.InvalidOperationException: Encountered malformed markup tag at position 7.
+   at Spectre.Console.MarkupTokenizer.ReadMarkup() in /_/src/Spectre.Console/Internal/Text/Markup/MarkupTokenizer.cs:line 192
+   at Spectre.Console.MarkupTokenizer.MoveNext() in /_/src/Spectre.Console/Internal/Text/Markup/MarkupTokenizer.cs:line 27
+   at Spectre.Console.MarkupParser.Parse(String text, Style style) in /_/src/Spectre.Console/Internal/Text/Markup/MarkupParser.cs:line 19
+   at Spectre.Console.AnsiConsoleExtensions.Markup(IAnsiConsole console, String value) in /_/src/Spectre.Console/Extensions/AnsiConsoleExtensions.Markup.cs:line 77
+   at Spectre.Console.AnsiConsoleExtensions.MarkupLine(IAnsiConsole console, String value) in /_/src/Spectre.Console/Extensions/AnsiConsoleExtensions.Markup.cs:line 117
+   at Spectre.Console.AnsiConsole.MarkupLine(String value) in /_/src/Spectre.Console/AnsiConsole.Markup.cs:line 81
+   at LoliconSetuBot.Program.DownloadWithProgress(LoliconService service, LoliconData data, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 232
+   at LoliconSetuBot.Program.RunTestAsync(String tag) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 305
+2026-08-04 12:07:11.142 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 12:07:11.214 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 12:07:13.323 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2022/12/11/00/00/06/103503791_p0.png
+2026-08-04 12:07:18.037 +08:00 [ERR] 测试失败
+System.IO.IOException: 句柄无效。
+   at System.ConsolePal.GetBufferInfo(Boolean throwOnNoConsole, Boolean& succeeded)
+   at System.ConsolePal.get_WindowWidth()
+   at LoliconSetuBot.Program.DownloadWithProgress(LoliconService service, LoliconData data, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 234
+   at LoliconSetuBot.Program.RunTestAsync(String tag) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 308
+2026-08-04 12:18:09.255 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 12:18:09.330 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 12:18:11.616 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2021/09/26/17/17/39/93032626_p0.png
+2026-08-04 12:18:22.253 +08:00 [ERR] 测试失败
+System.IO.IOException: 句柄无效。
+   at System.ConsolePal.GetBufferInfo(Boolean throwOnNoConsole, Boolean& succeeded)
+   at System.ConsolePal.get_WindowWidth()
+   at LoliconSetuBot.Program.DownloadWithProgress(LoliconService service, LoliconData data, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 234
+   at LoliconSetuBot.Program.RunTestAsync(String tag) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 306
+2026-08-04 12:27:03.050 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 12:27:03.127 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 12:27:06.702 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2021/11/27/18/44/30/94408272_p0.png
+2026-08-04 12:27:20.320 +08:00 [ERR] 测试失败
+System.IO.IOException: 句柄无效。
+   at System.ConsolePal.GetBufferInfo(Boolean throwOnNoConsole, Boolean& succeeded)
+   at System.ConsolePal.get_WindowWidth()
+   at LoliconSetuBot.Program.DownloadWithProgress(LoliconService service, LoliconData data, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 234
+   at LoliconSetuBot.Program.RunTestAsync(String tag) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 306
+2026-08-04 12:41:24.633 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 12:41:24.726 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 12:41:27.061 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2022/09/01/23/17/48/100927538_p0.jpg
+2026-08-04 12:41:34.711 +08:00 [ERR] 测试失败
+System.IO.IOException: 句柄无效。
+   at System.ConsolePal.GetBufferInfo(Boolean throwOnNoConsole, Boolean& succeeded)
+   at System.ConsolePal.get_WindowWidth()
+   at LoliconSetuBot.Program.DownloadWithProgress(LoliconService service, LoliconData data, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 232
+   at LoliconSetuBot.Program.RunTestAsync(String tag) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 304
+2026-08-04 12:42:31.404 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 12:42:31.498 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 12:42:33.609 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2022/05/02/22/17/19/98053658_p0.jpg
+2026-08-04 12:42:48.533 +08:00 [ERR] 测试失败
+System.IO.IOException: 句柄无效。
+   at System.ConsolePal.GetBufferInfo(Boolean throwOnNoConsole, Boolean& succeeded)
+   at System.ConsolePal.get_WindowWidth()
+   at LoliconSetuBot.Program.DownloadWithProgress(LoliconService service, LoliconData data, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 232
+   at LoliconSetuBot.Program.RunTestAsync(String tag) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 304
+2026-08-04 12:44:28.048 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 12:44:28.128 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 12:44:31.489 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2022/06/20/00/06/19/99170999_p0.jpg
+2026-08-04 12:44:47.013 +08:00 [ERR] 测试失败
+System.IO.IOException: 句柄无效。
+   at System.ConsolePal.GetBufferInfo(Boolean throwOnNoConsole, Boolean& succeeded)
+   at System.ConsolePal.get_WindowWidth()
+   at LoliconSetuBot.Program.DownloadWithProgress(LoliconService service, LoliconData data, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 236
+   at LoliconSetuBot.Program.RunTestAsync(String tag) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 306
+2026-08-04 12:46:31.917 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 12:46:32.013 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 12:46:35.686 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2022/04/22/19/31/50/97799834_p0.jpg
+2026-08-04 12:46:37.800 +08:00 [ERR] 测试失败
+System.Net.Http.HttpRequestException: Response status code does not indicate success: 404 (Not Found).
+   at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at LoliconSetuBot.Services.LoliconService.DownloadImageAsync(LoliconData data, BotConfig config, CancellationToken ct, IProgress`1 progress) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Services\LoliconService.cs:line 231
+   at LoliconSetuBot.Program.DownloadWithProgress(LoliconService service, LoliconData data, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 227
+   at LoliconSetuBot.Program.RunTestAsync(String tag) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 306
+2026-08-04 12:46:51.836 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 12:46:51.919 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E8%8A%99%E5%AE%81%E5%A8%9C
+2026-08-04 12:46:53.376 +08:00 [DBG] 下载图片: https://i.pixiv.re/img-original/img/2023/11/12/00/17/40/113333041_p0.png
+2026-08-04 12:47:23.635 +08:00 [ERR] 测试失败
+System.IO.IOException: 句柄无效。
+   at System.ConsolePal.GetBufferInfo(Boolean throwOnNoConsole, Boolean& succeeded)
+   at System.ConsolePal.get_WindowWidth()
+   at LoliconSetuBot.Program.DownloadWithProgress(LoliconService service, LoliconData data, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 236
+   at LoliconSetuBot.Program.RunTestAsync(String tag) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 306

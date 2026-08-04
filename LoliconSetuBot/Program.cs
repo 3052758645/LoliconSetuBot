@@ -14,15 +14,63 @@ static class Program {
 
     private static readonly CancellationTokenSource _cts = new();
 
+    private static void PrintHelp() {
+        AnsiConsole.MarkupLine("[bold]LoliconSetuBot v2.7[/]\n");
+        AnsiConsole.MarkupLine("[bold]用法:[/]\n");
+        // 不用 Markup 输出 --tag 等内容，避免 Markup 解析冲突
+        Console.Write("  dotnet run -- --tag <tag> --count <n> --infinite --interval <ms> --quiet --help\n");
+        AnsiConsole.MarkupLine("[bold]参数:[/]\n");
+        AnsiConsole.MarkupLine("  [cyan]--tag <tag>[/]         获取指定标签的图片（不传则进入交互模式）");
+        AnsiConsole.MarkupLine("  [cyan]--count <n>[/]          获取图片数量，默认 [dim]1[/]");
+        AnsiConsole.MarkupLine("  [cyan]--infinite[/]          无限循环模式，Ctrl+C 停止");
+        AnsiConsole.MarkupLine("  [cyan]--interval <ms>[/]     无限模式请求间隔（毫秒），默认 [dim]1500[/]");
+        AnsiConsole.MarkupLine("  [cyan]--quiet[/]             不显示图片元数据（标题、作者等）");
+        AnsiConsole.MarkupLine("  [cyan]--help[/]              显示此帮助信息\n");
+    }
+
     static async Task Main(string[] args) {
         // Fix mojibake: Windows cmd defaults to GBK, .NET 6+ outputs UTF-8.
         Console.OutputEncoding = Encoding.UTF8;
         SetConsoleOutputCP(65001);
 
-        if (args.Length >= 1 && args[0] is "--test" or "-t") {
-            string tag = args.Length > 1 ? args[1] : "";
-            await RunTestAsync(tag);
+        if (args.Length >= 1 && args[0] is "--help" or "-h") {
+            PrintHelp();
             return;
+        }
+
+        // Parse CLI args
+        string? tag = null;
+        int count = 1;
+        bool infinite = false;
+        int interval = 1500;
+        bool quiet = false;
+
+        for (int i = 0; i < args.Length; i++) {
+            switch (args[i]) {
+                case "--tag":
+                    tag = args[++i];
+                    break;
+                case "--count":
+                    count = int.Parse(args[++i]);
+                    break;
+                case "--infinite":
+                    infinite = true;
+                    break;
+                case "--interval":
+                    interval = int.Parse(args[++i]);
+                    break;
+                case "--quiet":
+                    quiet = true;
+                    break;
+                default:
+                    Log.Logger = new LoggerConfiguration()
+                        .MinimumLevel.Warning()
+                        .WriteTo.Console()
+                        .CreateLogger();
+                    Log.Warning("未知参数: {Arg}", args[i]);
+                    PrintHelp();
+                    return;
+            }
         }
 
         Log.Logger = new LoggerConfiguration()
@@ -36,10 +84,14 @@ static class Program {
             .CreateLogger();
 
         try {
-            Console.OutputEncoding = Encoding.UTF8;
+            var config = BotConfig.Load("config.json");
+            Log.Information("配置已加载: r18={R18}, size={Size}, proxy={Proxy}", config.R18, config.Size, config.Proxy);
 
-            DrawBanner();
-            DrawCommands();
+            using var service = new LoliconService();
+            service.CleanCache(keep: 50);
+
+            string groupId = config.Enabled ? "default" : "disabled";
+            var cooldowns = new Dictionary<string, DateTimeOffset>();
 
             Console.CancelKeyPress += (s, e) => {
                 e.Cancel = true;
@@ -47,30 +99,23 @@ static class Program {
                 Log.Information("[STOP] 正在停止...");
             };
 
-            var config = BotConfig.Load("config.json");
-            Log.Information("配置已加载: r18={R18}, size={Size}, proxy={Proxy}", config.R18, config.Size, config.Proxy);
+            DrawBanner();
 
-            using var service = new LoliconService();
-            service.CleanCache(keep: 50);
+            if (!config.Enabled) {
+                AnsiConsole.MarkupLine("[yellow]  ⚠️ 已禁用（config.json 中 enabled=false）[/]");
+                return;
+            }
 
-            string groupId = args.Length > 0 ? args[0] : "default";
-            var cooldowns = new Dictionary<string, DateTimeOffset>();
-
-            while (!_cts.Token.IsCancellationRequested) {
-                AnsiConsole.Markup("  [cyan]>[/] ");
-                var input = Console.ReadLine()?.Trim() ?? "";
-                if (string.IsNullOrEmpty(input)) continue;
-
-                if (input is "exit" or "quit") {
-                    break;
-                } else if (input is "无限涩图" or "循环") {
-                    await RunInfiniteMode(config, cooldowns, groupId, service);
-                } else if (TryParseTag(input, out var tag)) {
-                    await RunSingleFetch(tag!, config, cooldowns, groupId, service);
-                } else {
-                    Log.Warning("未知指令: {Input}", input);
-                    AnsiConsole.MarkupLine("[red]  ❌ 未知指令，请输入: 来张[标签]涩图 | 无限涩图 | exit[/]\n");
-                }
+            if (infinite) {
+                // 无限模式
+                await RunInfiniteMode(tag, config, cooldowns, groupId, service, interval, quiet);
+            } else if (tag != null) {
+                // 单次/批量获取
+                await RunBatchFetch(tag, count, config, cooldowns, groupId, service, quiet);
+            } else {
+                // 交互模式
+                DrawCommands();
+                await RunInteractiveMode(config, cooldowns, groupId, service);
             }
 
             AnsiConsole.MarkupLine("\n[dim]  再见！[/]");
@@ -110,6 +155,39 @@ static class Program {
         AnsiConsole.WriteLine();
     }
 
+    private static async Task RunInteractiveMode(BotConfig config, Dictionary<string, DateTimeOffset> cooldowns, string groupId, LoliconService service) {
+        while (!_cts.Token.IsCancellationRequested) {
+            AnsiConsole.Markup("  [cyan]>[/] ");
+            var input = Console.ReadLine()?.Trim() ?? "";
+            if (string.IsNullOrEmpty(input)) continue;
+
+            if (input is "exit" or "quit") {
+                break;
+            } else if (input is "无限涩图" or "循环") {
+                await RunInfiniteMode(null, config, cooldowns, groupId, service, 1500, false);
+            } else if (TryParseTag(input, out var tag)) {
+                await RunSingleFetch(tag!, config, cooldowns, groupId, service, false);
+            } else {
+                Log.Warning("未知指令: {Input}", input);
+                AnsiConsole.MarkupLine("[red]  ❌ 未知指令，请输入: 来张[标签]涩图 | 无限涩图 | exit[/]\n");
+            }
+        }
+    }
+
+    private static async Task RunBatchFetch(string tag, int count, BotConfig config, Dictionary<string, DateTimeOffset> cooldowns, string groupId, LoliconService service, bool quiet) {
+        if (count < 1) {
+            AnsiConsole.MarkupLine("[yellow]  ⚠️ 数量必须 >= 1[/]");
+            return;
+        }
+        AnsiConsole.MarkupLine($"[bold]  📦 标签:[/] [bold]{Escape(tag)}[/]  [dim]x{count}[/]\n");
+        for (int i = 0; i < count; i++) {
+            if (_cts.Token.IsCancellationRequested) break;
+            await RunSingleFetch(tag, config, cooldowns, groupId, service, quiet);
+            if (i < count - 1) await Task.Delay(1000, _cts.Token);
+        }
+        AnsiConsole.MarkupLine("\n[dim]  ✅ 完成！[/]");
+    }
+
     private static bool TryParseTag(string input, out string? tag) {
         if (input.Length >= 4 && input.StartsWith("来张", StringComparison.Ordinal) && input.EndsWith("涩图", StringComparison.Ordinal)) {
             tag = input[2..^2].Trim();
@@ -119,10 +197,12 @@ static class Program {
         return false;
     }
 
-    private static async Task RunInfiniteMode(BotConfig config, Dictionary<string, DateTimeOffset> cooldowns, string groupId, LoliconService service) {
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[bold dim]━━━ 无限涩图模式 ━━━[/]\n");
-        AnsiConsole.MarkupLine("[dim]  按 Ctrl+C 停止[/]\n");
+    private static async Task RunInfiniteMode(string? tag, BotConfig config, Dictionary<string, DateTimeOffset> cooldowns, string groupId, LoliconService service, int intervalMs, bool quiet) {
+        if (!quiet) {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[bold dim]━━━ 无限涩图模式 ━━━[/]\n");
+            AnsiConsole.MarkupLine("[dim]  按 Ctrl+C 停止[/]\n");
+        }
 
         int consecutiveErrors = 0;
 
@@ -131,9 +211,10 @@ static class Program {
                 await ApplyCooldown(cooldowns, groupId, config);
 
                 AnsiConsole.MarkupLine("[cyan]  ⏳ 请求中…[/]");
-                var result = await service.ResolveAsync("", config, _cts.Token);
+                var result = await service.ResolveAsync(tag ?? "", config, _cts.Token);
 
-                DrawImageInfo(result.Data);
+                if (!quiet) DrawImageInfo(result.Data);
+                else Console.WriteLine($"  ⬇️ {result.Data.Title} — {result.Data.Author}");
 
                 await DownloadWithProgress(service, result.Data, config, _cts.Token);
 
@@ -146,13 +227,15 @@ static class Program {
                     await Task.Delay(config.RevokeDelay, _cts.Token);
                 }
             } catch (OperationCanceledException) {
-                AnsiConsole.WriteLine();
-                AnsiConsole.MarkupLine("[dim]  ━━━ 无限模式已停止 ━━━[/]\n");
+                if (!quiet) {
+                    AnsiConsole.WriteLine();
+                    AnsiConsole.MarkupLine("[dim]  ━━━ 无限模式已停止 ━━━[/]\n");
+                }
                 Log.Information("无限模式已取消。");
                 break;
             } catch (Exception ex) {
                 consecutiveErrors++;
-                AnsiConsole.MarkupLine($"[red]  ❌ 错误 (第 {consecutiveErrors} 次): {ex.Message}[/]\n");
+                AnsiConsole.MarkupLine($"[red]  ❌ 错误 (第 {consecutiveErrors} 次): {Escape(ex.Message)}[/]\n");
                 Log.Error(ex, "错误 (第 {Errors} 次)", consecutiveErrors);
 
                 if (consecutiveErrors > 5) {
@@ -165,7 +248,7 @@ static class Program {
 
             if (!_cts.Token.IsCancellationRequested) {
                 try {
-                    await Task.Delay(1500, _cts.Token);
+                    await Task.Delay(intervalMs, _cts.Token);
                 } catch (OperationCanceledException) {
                     break;
                 }
@@ -193,16 +276,17 @@ static class Program {
         }
     }
 
-    private static async Task RunSingleFetch(string tag, BotConfig config, Dictionary<string, DateTimeOffset> cooldowns, string groupId, LoliconService service) {
+    private static async Task RunSingleFetch(string tag, BotConfig config, Dictionary<string, DateTimeOffset> cooldowns, string groupId, LoliconService service, bool quiet) {
         try {
             await ApplyCooldown(cooldowns, groupId, config);
 
-            AnsiConsole.MarkupLine($"[cyan]  📦 标签:[/] [bold]{Escape(tag)}[/]\n");
+            if (!quiet) AnsiConsole.MarkupLine($"[cyan]  📦 标签:[/] [bold]{Escape(tag)}[/]\n");
 
             AnsiConsole.MarkupLine("[cyan]  ⏳ 请求中…[/]");
             var result = await service.ResolveAsync(tag, config, _cts.Token);
 
-            DrawImageInfo(result.Data);
+            if (!quiet) DrawImageInfo(result.Data);
+            else Console.WriteLine($"  ⬇️ {result.Data.Title} — {result.Data.Author}");
 
             await DownloadWithProgress(service, result.Data, config, _cts.Token);
 
@@ -233,7 +317,7 @@ static class Program {
             }
         }));
         Console.Write("\r");
-        Console.Write(new string(' ', Console.WindowWidth));
+        if (!Console.IsOutputRedirected) { Console.Write(new string(' ', Console.WindowWidth)); }
         Console.Write("\r");
         var fmt = bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 ? "JPEG" :
                   bytes.Length >= 8 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47 ? "PNG" : "未知";
@@ -271,75 +355,6 @@ static class Program {
                 } catch (OperationCanceledException) {
                 }
             }
-        }
-    }
-
-    private static async Task RunTestAsync(string tag) {
-        Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Debug()
-            .WriteTo.File(
-                path: "logs/log-test-.txt",
-                rollingInterval: RollingInterval.Day,
-                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
-            .CreateLogger();
-
-        Console.OutputEncoding = Encoding.UTF8;
-
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[bold magenta]🧪 功能测试模式[/]");
-        AnsiConsole.MarkupLine($"[dim]  标签:[/] '{tag}'\n");
-
-        try {
-            var config = BotConfig.Load("config.json");
-            Log.Information("配置已加载: r18={R18}, size={Size}, proxy={Proxy}", config.R18, config.Size, config.Proxy);
-
-            using var service = new LoliconService();
-            service.CleanCache(keep: 50);
-
-            var cacheDir = Path.Combine(AppContext.BaseDirectory, "cache");
-
-            AnsiConsole.MarkupLine("[cyan]  📡 请求元数据…[/]\n");
-            var resolve = await service.ResolveAsync(tag, config, CancellationToken.None);
-
-            DrawImageInfo(resolve.Data);
-
-            await DownloadWithProgress(service, resolve.Data, config, CancellationToken.None);
-
-            AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine("[dim]  📂 缓存检查:[/]");
-            if (Directory.Exists(cacheDir)) {
-                var files = Directory.GetFiles(cacheDir);
-                AnsiConsole.MarkupLine($"[dim]  缓存文件:[/] {files.Length}");
-
-                var cacheTable = new Table();
-                cacheTable.AddColumn("[dim]文件名[/]");
-                cacheTable.AddColumn("[dim]大小[/]");
-                cacheTable.AddColumn("[dim]魔数[/]");
-
-                foreach (var f in files) {
-                    var fi = new FileInfo(f);
-                    var raw = await File.ReadAllBytesAsync(f);
-                    var detected = raw.Length >= 3 && raw[0] == 0xFF && raw[1] == 0xD8 ? "JPEG" :
-                                   raw.Length >= 8 && raw[0] == 0x89 && raw[1] == 0x50 && raw[2] == 0x4E && raw[3] == 0x47 ? "PNG" : "未知";
-                    cacheTable.AddRow(fi.Name, $"{fi.Length} bytes", detected);
-                }
-
-                AnsiConsole.Write(cacheTable);
-            } else {
-                AnsiConsole.MarkupLine("[yellow]  ⚠️ 缓存目录不存在[/]\n");
-            }
-
-            AnsiConsole.MarkupLine("\n[green]  ✅ 测试完成[/]");
-            Log.Information("测试完成");
-        } catch (Exception ex) {
-            AnsiConsole.MarkupLine($"\n[red]  ❌ {ex.GetType().Name}: {ex.Message}[/]");
-            if (ex.InnerException != null) {
-                AnsiConsole.MarkupLine($"  [dim]内部异常:[/] {ex.InnerException.Message}[/]");
-            }
-            Log.Error(ex, "测试失败");
-            Environment.Exit(1);
-        } finally {
-            Log.CloseAndFlush();
         }
     }
 

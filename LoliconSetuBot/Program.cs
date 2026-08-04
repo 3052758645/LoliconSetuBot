@@ -171,6 +171,7 @@ static class Program {
             )
         );
         AnsiConsole.Write(panel);
+        AnsiConsole.WriteLine();
 
         if (data.Tags.Count > 0) {
             AnsiConsole.Markup("[dim]  标签:[/] ");

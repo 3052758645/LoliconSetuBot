@@ -107,6 +107,7 @@ static class Program {
 
     /// <summary>
     /// 无限循环模式：持续获取并打印图片信息，直到用户取消
+    /// 两阶段：先请求元数据 → 展示信息 → 下载图片
     /// </summary>
     private static async Task RunInfiniteMode(BotConfig config, Dictionary<string, DateTimeOffset> cooldowns, string groupId, LoliconService service) {
         Log.Information("进入无限涩图模式，按 Ctrl+C 停止...");
@@ -116,14 +117,23 @@ static class Program {
         while (!_cts.Token.IsCancellationRequested) {
             try {
                 await ApplyCooldown(cooldowns, groupId, config);
-                var result = await service.FetchAsync("", config, _cts.Token);
 
+                // 阶段1：请求元数据
+                Console.WriteLine("[API] 正在请求...");
+                var result = await service.ResolveAsync("", config, _cts.Token);
+
+                // 阶段2：展示信息
                 if (!string.IsNullOrEmpty(result.InfoText)) {
                     Console.ForegroundColor = ConsoleColor.Cyan;
                     Console.WriteLine(result.InfoText);
                     Console.ResetColor();
                 }
-                Console.WriteLine("[IMAGE] 大小: {0} KB", result.ImageBytes.Length / 1024);
+
+                // 阶段3：下载图片
+                Console.WriteLine("[IMAGE] 正在下载...");
+                var bytes = await service.DownloadImageAsync(result.Data, config, _cts.Token);
+                Console.WriteLine("[IMAGE] 大小: {0} KB", bytes.Length / 1024);
+
                 cooldowns[groupId] = DateTimeOffset.Now;
                 consecutiveErrors = 0;
 
@@ -165,20 +175,29 @@ static class Program {
 
     /// <summary>
     /// 单张获取模式：解析输入指令获取指定标签的图片，仅执行一次
+    /// 两阶段：先请求元数据 → 展示信息 → 下载图片
     /// </summary>
     private static async Task RunSingleFetch(string tag, BotConfig config, Dictionary<string, DateTimeOffset> cooldowns, string groupId, LoliconService service) {
         Log.Information("获取图片，群组={Group}, 标签={Tag}", groupId, tag);
 
         try {
             await ApplyCooldown(cooldowns, groupId, config);
-            var result = await service.FetchAsync(tag, config, _cts.Token);
 
+            // 阶段1：请求元数据
+            Console.WriteLine("[API] 正在请求...");
+            var result = await service.ResolveAsync(tag, config, _cts.Token);
+
+            // 阶段2：展示信息
             if (!string.IsNullOrEmpty(result.InfoText)) {
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine(result.InfoText);
                 Console.ResetColor();
             }
-            Console.WriteLine("[IMAGE] 大小: {0} KB", result.ImageBytes.Length / 1024);
+
+            // 阶段3：下载图片
+            Console.WriteLine("[IMAGE] 正在下载...");
+            var bytes = await service.DownloadImageAsync(result.Data, config, _cts.Token);
+            Console.WriteLine("[IMAGE] 大小: {0} KB", bytes.Length / 1024);
             Console.WriteLine();
             cooldowns[groupId] = DateTimeOffset.Now;
 
@@ -248,18 +267,28 @@ static class Program {
             Console.WriteLine($"缓存目录内容: {(Directory.Exists(cacheDir) ? Directory.GetFiles(cacheDir).Length.ToString() + " 个文件" : "不存在")}");
             Console.WriteLine();
 
-            // 执行请求
+            // 阶段1：请求元数据
             Console.WriteLine("[API] 正在请求...");
-            var result = await service.FetchAsync(tag, config, CancellationToken.None);
+            var resolve = await service.ResolveAsync(tag, config, CancellationToken.None);
 
-            // 输出结果
+            // 阶段2：展示信息
             Console.WriteLine();
             Console.WriteLine("=== API 响应 ===");
-            if (!string.IsNullOrEmpty(result.InfoText)) {
-                Console.WriteLine($"[INFO] {result.InfoText}");
+            if (!string.IsNullOrEmpty(resolve.InfoText)) {
+                Console.WriteLine($"[INFO] {resolve.InfoText}");
             }
-            Console.WriteLine($"[IMAGE] 大小: {result.ImageBytes.Length} bytes ({result.ImageBytes.Length / 1024} KB)");
-            Console.WriteLine($"[IMAGE] 格式判断: {(result.ImageBytes.Length >= 3 && result.ImageBytes[0] == 0xFF && result.ImageBytes[1] == 0xD8 ? "JPEG" : "PNG/其他")}");
+            Console.WriteLine($"[IMAGE] 标题: {resolve.Data.Title}");
+            Console.WriteLine($"[IMAGE] 作者: {resolve.Data.Author}");
+            Console.WriteLine($"[IMAGE] PID: {resolve.Data.Pid}");
+            Console.WriteLine($"[IMAGE] 尺寸: {resolve.Data.Width}x{resolve.Data.Height}");
+            Console.WriteLine($"[IMAGE] 标签: {string.Join(", ", resolve.Data.Tags)}");
+
+            // 阶段3：下载图片
+            Console.WriteLine();
+            Console.WriteLine("[IMAGE] 正在下载...");
+            var bytes = await service.DownloadImageAsync(resolve.Data, config, CancellationToken.None);
+            Console.WriteLine($"[IMAGE] 已下载: {bytes.Length} bytes ({bytes.Length / 1024} KB)");
+            Console.WriteLine($"[IMAGE] 格式判断: {(bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 ? "JPEG" : "PNG/其他")}");
 
             // 检查缓存
             Console.WriteLine();

@@ -50,55 +50,81 @@ public sealed class LoliconService : IDisposable {
     }
 
     /// <summary>
-    /// 获取插画（核心方法）：根据标签和配置从 API 获取插画，支持自动重试（最多 3 次）
-    /// 修复：区分可重试/不可重试异常；移除 unreachable 的 TimeoutException catch
+    /// 解析 API 元数据：请求 lolicon.app API，获取图片标题/作者/PID 等信息，不下载图片
+    /// 用于"先展示信息、后下载"的交互流程
     /// </summary>
-    public async Task<SetuResult> FetchAsync(string tag, BotConfig config, CancellationToken ct = default) {
+    public async Task<SetuResult> ResolveAsync(string tag, BotConfig config, CancellationToken ct = default) {
         for (int retry = 0; retry <= MaxRetries; retry++) {
             try {
-                return await ExecuteFetch(tag, config, ct);
+                return await ExecuteResolve(tag, config, ct);
             } catch (OperationCanceledException) when (ct.IsCancellationRequested) {
-                // 用户主动取消，不重试，直接抛出
                 Log.Information("请求被用户取消（标签: {Tag}）", tag);
                 throw;
             } catch (OperationCanceledException) when (retry < MaxRetries) {
-                // HTTP 超时或网络问题导致的取消（非用户主动），指数退避重试
                 await LogAndDelayAsync(retry, "网络超时/取消，正在重试...");
             } catch (HttpRequestException ex) when (retry < MaxRetries) {
-                // 修复：检查 HTTP 状态码，4xx（400/403/404/429）不应重试
                 if (ex.StatusCode is >= System.Net.HttpStatusCode.BadRequest and < System.Net.HttpStatusCode.InternalServerError) {
                     Log.Warning("API 返回 HTTP {StatusCode}，不再重试: {Message}", ex.StatusCode, ex.Message);
                     throw;
                 }
                 await LogAndDelayAsync(retry, $"HTTP 错误 ({ex.StatusCode}): {ex.Message}");
             } catch (InvalidOperationException ex) when (retry < MaxRetries) {
-                // 修复：API 返回的无效响应（如 JSON 格式变化）不应重试
-                // 但如果是"空标签"导致的 API 报错，可以重试
                 if (ex.Message.StartsWith("API error:") || ex.Message.Contains("No images")) {
                     Log.Warning("API 返回无效响应，不再重试: {Message}", ex.Message);
                     throw;
                 }
-                // 其他InvalidOperationException（如 URL 构建问题）不重试
                 Log.Warning("InvalidOperation 异常，不再重试: {Message}", ex.Message);
                 throw;
             } catch (JsonException ex) when (retry < MaxRetries) {
-                // 修复：JSON 解析失败不应重试——说明 API 返回格式变了
                 Log.Warning("JSON 解析失败，API 可能已变更，不再重试: {Message}", ex.Message);
                 throw;
             } catch (Exception ex) when (retry < MaxRetries) {
-                // 其他未知异常，指数退避重试
                 await LogAndDelayAsync(retry, $"未知错误: {ex.Message}");
             }
         }
-
-        // 不应到达这里
         throw new InvalidOperationException("重试次数已达上限。");
     }
 
     /// <summary>
-    /// 执行单次获取逻辑（不含重试）
+    /// 获取插画（核心方法）：根据标签和配置从 API 获取插画，支持自动重试（最多 3 次）
+    /// 一步完成：请求元数据 → 下载 → 处理 → 返回
     /// </summary>
-    private async Task<SetuResult> ExecuteFetch(string tag, BotConfig config, CancellationToken ct) {
+    public async Task<SetuResult> FetchAsync(string tag, BotConfig config, CancellationToken ct = default) {
+        for (int retry = 0; retry <= MaxRetries; retry++) {
+            try {
+                return await ExecuteFetch(tag, config, ct);
+            } catch (OperationCanceledException) when (ct.IsCancellationRequested) {
+                Log.Information("请求被用户取消（标签: {Tag}）", tag);
+                throw;
+            } catch (OperationCanceledException) when (retry < MaxRetries) {
+                await LogAndDelayAsync(retry, "网络超时/取消，正在重试...");
+            } catch (HttpRequestException ex) when (retry < MaxRetries) {
+                if (ex.StatusCode is >= System.Net.HttpStatusCode.BadRequest and < System.Net.HttpStatusCode.InternalServerError) {
+                    Log.Warning("API 返回 HTTP {StatusCode}，不再重试: {Message}", ex.StatusCode, ex.Message);
+                    throw;
+                }
+                await LogAndDelayAsync(retry, $"HTTP 错误 ({ex.StatusCode}): {ex.Message}");
+            } catch (InvalidOperationException ex) when (retry < MaxRetries) {
+                if (ex.Message.StartsWith("API error:") || ex.Message.Contains("No images")) {
+                    Log.Warning("API 返回无效响应，不再重试: {Message}", ex.Message);
+                    throw;
+                }
+                Log.Warning("InvalidOperation 异常，不再重试: {Message}", ex.Message);
+                throw;
+            } catch (JsonException ex) when (retry < MaxRetries) {
+                Log.Warning("JSON 解析失败，API 可能已变更，不再重试: {Message}", ex.Message);
+                throw;
+            } catch (Exception ex) when (retry < MaxRetries) {
+                await LogAndDelayAsync(retry, $"未知错误: {ex.Message}");
+            }
+        }
+        throw new InvalidOperationException("重试次数已达上限。");
+    }
+
+    /// <summary>
+    /// 执行解析逻辑（不含重试，仅请求 API，不下载图片）
+    /// </summary>
+    private async Task<SetuResult> ExecuteResolve(string tag, BotConfig config, CancellationToken ct) {
         var url = BuildUrl(tag, config);
         Log.Debug("请求 API: {Url}", url);
 
@@ -112,10 +138,29 @@ public sealed class LoliconService : IDisposable {
             throw new InvalidOperationException("No images matched.");
 
         var data = resp.Data[0];
-        var imageUrl = GetImageUrl(data, config.Size) ?? data.Urls.Original;
-        if (string.IsNullOrEmpty(imageUrl))
+        if (string.IsNullOrEmpty(data.Urls.Original))
             throw new InvalidOperationException("Image URL is empty.");
 
+        // 暂不下载，仅缓存元数据
+        string info = config.ShowInfo ? FormatInfo(data) : string.Empty;
+
+        return new SetuResult {
+            Data = data,
+            ImageBytes = Array.Empty<byte>(), // 占位，下载时会覆盖
+            InfoText = info
+        };
+    }
+
+    /// <summary>
+    /// 执行单次获取逻辑（不含重试）
+    /// </summary>
+    private async Task<SetuResult> ExecuteFetch(string tag, BotConfig config, CancellationToken ct) {
+        // 先解析元数据
+        var resolve = await ExecuteResolve(tag, config, ct);
+        var data = resolve.Data;
+        var imageUrl = GetImageUrl(data, config.Size) ?? data.Urls.Original;
+
+        // 下载图片
         Log.Debug("下载图片: {Url}", imageUrl);
         var rawBytes = await _http.GetByteArrayAsync(imageUrl, ct);
 
@@ -165,6 +210,26 @@ public sealed class LoliconService : IDisposable {
         }
 
         return ApiUrl + "?" + string.Join("&", parts);
+    }
+
+    /// <summary>
+    /// 根据已解析的元数据下载并处理图片
+    /// 用于"先展示信息、后下载"的两阶段流程
+    /// </summary>
+    public async Task<byte[]> DownloadImageAsync(LoliconData data, BotConfig config, CancellationToken ct = default) {
+        var imageUrl = GetImageUrl(data, config.Size) ?? data.Urls.Original;
+        if (string.IsNullOrEmpty(imageUrl))
+            throw new InvalidOperationException("Image URL is empty.");
+
+        Log.Debug("下载图片: {Url}", imageUrl);
+        var rawBytes = await _http.GetByteArrayAsync(imageUrl, ct);
+
+        // 原始图片缓存
+        CacheImage(data.Title, data.Pid, rawBytes);
+
+        // 翻转处理
+        var processed = await ProcessImageAsync(rawBytes, config);
+        return processed;
     }
 
     /// <summary>

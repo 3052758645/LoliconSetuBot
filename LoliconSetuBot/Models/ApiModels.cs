@@ -71,6 +71,14 @@ public sealed class LoliconUrls {
     // 小尺寸图片链接
     [JsonPropertyName("small")]
     public string? Small { get; set; }
+
+    // ????????
+    [JsonPropertyName("mini")]
+    public string? Mini { get; set; }
+
+    // ?????????
+    [JsonPropertyName("thumb")]
+    public string? Thumb { get; set; }
 }
 
 /// <summary>

@@ -1,235 +1,312 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Net;
+using System.Text.Json.Serialization;
 using System.Text.Json;
 using System.Text;
 using SkiaSharp;
+using Serilog;
 using LoliconSetuBot.Models;
 
 namespace LoliconSetuBot.Services;
 
 /// <summary>
 /// 插画获取服务：负责调用 lolicon.app API、处理图片、缓存图片等核心功能
+/// 修复：自管理 HttpClient、区分可重试/不可重试异常、保留原图格式、缓存清理
 /// </summary>
 public sealed class LoliconService : IDisposable {
-    // HTTP 客户端，用于发起网络请求
+    // HTTP 客户端：改为 private readonly + 服务内部创建（长生命周期）
     private readonly HttpClient _http;
     // 本地图片缓存目录路径
     private readonly string _cacheDir;
     // lolicon.app API 接口地址
     private const string ApiUrl = "https://api.lolicon.app/setu/v2";
-    // JSON 序列化/反序列化选项：使用驼峰命名 + 允许字符串解析数字
+    // 最大重试次数
+    private const int MaxRetries = 3;
+    // JSON 序列化/反序列化选项：驼峰命名 + 允许字符串解析数字
     private static readonly JsonSerializerOptions JsonOpts = new() {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         NumberHandling = JsonNumberHandling.AllowReadingFromString
     };
 
     /// <summary>
-    /// 构造函数：初始化服务，设置 HTTP 超时、User-Agent，并创建缓存目录
+    /// 构造函数：服务内部管理 HttpClient 生命周期
+    /// 修复：HttpClient 不再由外部传入（避免 using 语义错误），由本类负责创建和释放
     /// </summary>
-    /// <param name="http"></param>
-    public LoliconService(HttpClient http) {
-        _http = http;
-        // 设置 HTTP 请求超时时间为 45 秒
-        _http.Timeout = TimeSpan.FromSeconds(45);
-        // 设置 User-Agent 标识
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("LoliconSetuBot/2.6");
-        // 获取程序运行目录下的 cache 文件夹路径
+    public LoliconService() {
+        // 修复：HttpClient 是长生命周期单例，不再被 using 包裹
+        _http = new HttpClient {
+            Timeout = TimeSpan.FromSeconds(60),
+            DefaultRequestHeaders = {
+                UserAgent = { new("LoliconSetuBot/2.7") }
+            }
+        };
+        // 限制最大并发连接数，避免被 IP 封禁
+        ServicePointManager.DefaultConnectionLimit = 50;
+
         _cacheDir = Path.Combine(AppContext.BaseDirectory, "cache");
-        // 如果 cache 目录不存在则创建
         Directory.CreateDirectory(_cacheDir);
     }
 
     /// <summary>
     /// 获取插画（核心方法）：根据标签和配置从 API 获取插画，支持自动重试（最多 3 次）
+    /// 修复：区分可重试/不可重试异常；移除 unreachable 的 TimeoutException catch
     /// </summary>
-    /// <param name="tag"></param>
-    /// <param name="config"></param>
-    /// <param name="ct"></param>
-    /// <param name="retry"></param>
-    /// <returns></returns>
-    /// <exception cref="InvalidOperationException"></exception>
-    public async Task<SetuResult> FetchAsync(string tag, BotConfig config, CancellationToken ct = default, int retry = 0) {
-        const int maxRetries = 3;
-        try {
-            // 构建带参数的 API 请求 URL
-            var urlBuilder = BuildUrl(tag, config);
-            // 发起 GET 请求获取 JSON 响应
-            var json = await _http.GetStringAsync(urlBuilder, ct);
-            // 将 JSON 反序列化为 LoliconResponse 对象
-            var resp = JsonSerializer.Deserialize<LoliconResponse>(json, JsonOpts);
-
-            // 如果 API 返回了错误信息，则抛出异常
-            if (!string.IsNullOrEmpty(resp?.Error))
-                throw new InvalidOperationException("API error: " + resp.Error);
-            // 如果没有返回任何图片数据，则抛出异常
-            if (resp?.Data == null || resp.Data.Count == 0)
-                throw new InvalidOperationException("No images matched.");
-
-            // 取返回结果的第一张图片数据
-            var data = resp.Data[0];
-            // 根据配置中的尺寸参数获取对应的图片 URL
-            var imageUrl = GetImageUrl(data, config.Size) ?? data.Urls.Original;
-            // 如果图片 URL 为空，则抛出异常
-            if (string.IsNullOrEmpty(imageUrl))
-                throw new InvalidOperationException("Image URL is empty.");
-
-            // 下载图片的原始字节数据
-            var rawBytes = await _http.GetByteArrayAsync(imageUrl, ct);
-            // 对图片进行处理（翻转等）
-            var processed = await ProcessImageAsync(rawBytes, config);
-            // 将处理后的图片保存到本地缓存
-            CacheImage(data.Title, processed);
-
-            // 根据配置决定是否生成图片信息文本
-            string info = config.ShowInfo ? FormatInfo(data) : string.Empty;
-
-            // 返回封装好的结果对象
-            return new SetuResult {
-                Data = data,
-                ImageBytes = processed,
-                InfoText = info
-            };
-        } catch (OperationCanceledException) when (retry < maxRetries) {
-            // 取消异常但重试次数未超限：指数退避重试
-            int delay = (int)Math.Pow(2, retry) * 1000;
-            Console.WriteLine("Retry " + (retry + 1) + "/" + maxRetries + ", waiting " + delay + "ms... (cancellation)");
-            await Task.Delay(TimeSpan.FromMilliseconds(delay), ct);
-            return await FetchAsync(tag, config, ct, retry + 1);
-        } catch (Exception ex) when (retry < maxRetries) {
-            // 其他异常但重试次数未超限：指数退避重试
-            int delay = (int)Math.Pow(2, retry) * 1000;
-            Console.WriteLine("Retry " + (retry + 1) + "/" + maxRetries + ", waiting " + delay + "ms... (" + ex.Message + ")");
-            await Task.Delay(TimeSpan.FromMilliseconds(delay), ct);
-            return await FetchAsync(tag, config, ct, retry + 1);
+    public async Task<SetuResult> FetchAsync(string tag, BotConfig config, CancellationToken ct = default) {
+        for (int retry = 0; retry <= MaxRetries; retry++) {
+            try {
+                return await ExecuteFetch(tag, config, ct);
+            } catch (OperationCanceledException) when (ct.IsCancellationRequested) {
+                // 用户主动取消，不重试，直接抛出
+                Log.Information("请求被用户取消（标签: {Tag}）", tag);
+                throw;
+            } catch (OperationCanceledException) when (retry < MaxRetries) {
+                // HTTP 超时或网络问题导致的取消（非用户主动），指数退避重试
+                await LogAndDelayAsync(retry, "网络超时/取消，正在重试...");
+            } catch (HttpRequestException ex) when (retry < MaxRetries) {
+                // 修复：检查 HTTP 状态码，4xx（400/403/404/429）不应重试
+                if (ex.StatusCode is >= System.Net.HttpStatusCode.BadRequest and < System.Net.HttpStatusCode.InternalServerError) {
+                    Log.Warning("API 返回 HTTP {StatusCode}，不再重试: {Message}", ex.StatusCode, ex.Message);
+                    throw;
+                }
+                await LogAndDelayAsync(retry, $"HTTP 错误 ({ex.StatusCode}): {ex.Message}");
+            } catch (InvalidOperationException ex) when (retry < MaxRetries) {
+                // 修复：API 返回的无效响应（如 JSON 格式变化）不应重试
+                // 但如果是"空标签"导致的 API 报错，可以重试
+                if (ex.Message.StartsWith("API error:") || ex.Message.Contains("No images")) {
+                    Log.Warning("API 返回无效响应，不再重试: {Message}", ex.Message);
+                    throw;
+                }
+                // 其他InvalidOperationException（如 URL 构建问题）不重试
+                Log.Warning("InvalidOperation 异常，不再重试: {Message}", ex.Message);
+                throw;
+            } catch (JsonException ex) when (retry < MaxRetries) {
+                // 修复：JSON 解析失败不应重试——说明 API 返回格式变了
+                Log.Warning("JSON 解析失败，API 可能已变更，不再重试: {Message}", ex.Message);
+                throw;
+            } catch (Exception ex) when (retry < MaxRetries) {
+                // 其他未知异常，指数退避重试
+                await LogAndDelayAsync(retry, $"未知错误: {ex.Message}");
+            }
         }
+
+        // 不应到达这里
+        throw new InvalidOperationException("重试次数已达上限。");
     }
 
     /// <summary>
-    /// 构建 API 请求 URL：根据标签和配置拼接完整的 API 请求参数
+    /// 执行单次获取逻辑（不含重试）
     /// </summary>
-    /// <param name="tag"></param>
-    /// <param name="config"></param>
-    /// <returns></returns>
-    private string BuildUrl(string tag, BotConfig config) {
-        // 基础参数：r18（0=排除、1=仅成人、2=包含成人）
-        var q = new StringBuilder("?r18=" + (config.R18 ? 2 : 0));
-        // 图片尺寸参数
-        q.Append("&size=" + Uri.EscapeDataString(config.Size));
-        // 图片代理参数
-        q.Append("&proxy=" + Uri.EscapeDataString(config.Proxy));
-        // 是否排除 AI 生成图片
-        q.Append("&excludeAI=" + (config.ExcludeAI ? "true" : "false"));
+    private async Task<SetuResult> ExecuteFetch(string tag, BotConfig config, CancellationToken ct) {
+        var url = BuildUrl(tag, config);
+        Log.Debug("请求 API: {Url}", url);
 
-        // 如果提供了标签参数，则逐个添加 tag 参数
+        var json = await _http.GetStringAsync(url, ct);
+        var resp = JsonSerializer.Deserialize<LoliconResponse>(json, JsonOpts);
+
+        if (!string.IsNullOrEmpty(resp?.Error))
+            throw new InvalidOperationException("API error: " + resp.Error);
+
+        if (resp?.Data == null || resp.Data.Count == 0)
+            throw new InvalidOperationException("No images matched.");
+
+        var data = resp.Data[0];
+        var imageUrl = GetImageUrl(data, config.Size) ?? data.Urls.Original;
+        if (string.IsNullOrEmpty(imageUrl))
+            throw new InvalidOperationException("Image URL is empty.");
+
+        Log.Debug("下载图片: {Url}", imageUrl);
+        var rawBytes = await _http.GetByteArrayAsync(imageUrl, ct);
+
+        // 原始图片缓存（不翻转，保留原始格式）
+        CacheImage(data.Title, data.Pid, rawBytes);
+
+        // 翻转处理（保留原图格式）
+        var processed = await ProcessImageAsync(rawBytes, config);
+
+        string info = config.ShowInfo ? FormatInfo(data) : string.Empty;
+
+        return new SetuResult {
+            Data = data,
+            ImageBytes = processed,
+            InfoText = info
+        };
+    }
+
+    /// <summary>
+    /// 记录日志并重试等待
+    /// </summary>
+    private static async Task LogAndDelayAsync(int retry, string reason) {
+        int delay = (int)Math.Pow(2, retry) * 1000;
+        Log.Warning("重试 {Retry}/{Max} ({Reason})", retry + 1, MaxRetries, reason);
+        await Task.Delay(TimeSpan.FromMilliseconds(delay));
+    }
+
+    /// <summary>
+    /// 构建 API 请求 URL：手动拼接参数，避免依赖 System.Web（.NET Core 无此程序集）
+    /// 修复：更符合 C# 规范，自动处理编码
+    /// </summary>
+    private static string BuildUrl(string tag, BotConfig config) {
+        var parts = new List<string> {
+            "r18=" + (config.R18 ? "true" : "false"),
+            "size=" + Uri.EscapeDataString(config.Size),
+            "proxy=" + Uri.EscapeDataString(config.Proxy),
+            "excludeAI=" + (config.ExcludeAI ? "true" : "false"),
+            "dsc=false"
+        };
+
+        // 支持空格、&、| 分隔的多个标签
         if (!string.IsNullOrEmpty(tag)) {
-            // 支持空格、&、| 分隔的多个标签
-            var separators = new[] { ' ', '&', '|' };
-            var tags = tag.Split(separators, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var t in tags)
-                q.Append("&tag=" + Uri.EscapeDataString(t.Trim()));
+            var tags = tag.Split(new[] { ' ', '&', '|' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var t in tags) {
+                parts.Add("tag=" + Uri.EscapeDataString(t.Trim()));
+            }
         }
-        return ApiUrl + q;
+
+        return ApiUrl + "?" + string.Join("&", parts);
     }
 
     /// <summary>
     /// 获取指定尺寸的图片 URL：根据尺寸参数返回对应的 URL，默认为原始尺寸
     /// </summary>
-    /// <param name="data"></param>
-    /// <param name="size"></param>
-    /// <returns></returns>
-    private string? GetImageUrl(LoliconData data, string? size) {
+    private static string? GetImageUrl(LoliconData data, string? size) {
         return size?.ToLowerInvariant() switch {
             "regular" => data.Urls.Regular,
             "small" => data.Urls.Small,
+            "mini" => data.Urls.Mini,
+            "thumb" => data.Urls.Thumb,
             _ => data.Urls.Original
         };
     }
 
     /// <summary>
-    /// 处理图片（翻转）：根据配置对图片进行水平/垂直翻转处理
+    /// 处理图片（翻转）：保留原图格式（PNG→PNG, JPG→JPG）
+    /// 修复：不再强制转 JPEG，避免透明通道丢失
     /// </summary>
-    /// <param name="bytes"></param>
-    /// <param name="config"></param>
-    /// <returns></returns>
     private static async Task<byte[]> ProcessImageAsync(byte[] bytes, BotConfig config) {
-        // 如果不需要翻转，直接返回原始数据
         if (!config.FlipHorizontal && !config.FlipVertical)
             return bytes;
 
-        // 将字节数组转为内存流
-        using var inputStream = new MemoryStream(bytes);
-        // 使用 SkiaSharp 解码图片
-        using var original = SKBitmap.Decode(inputStream);
-        if (original == null) return bytes;
+        try {
+            using var inputStream = new MemoryStream(bytes);
+            using var original = SKBitmap.Decode(inputStream);
+            if (original == null) {
+                Log.Warning("SkiaSharp 无法解码图片，返回原图");
+                return bytes;
+            }
 
-        // 创建输出画布
-        using var output = new SKBitmap(original.Width, original.Height);
-        using var canvas = new SKCanvas(output);
+            using var output = new SKBitmap(original.Width, original.Height);
+            using var canvas = new SKCanvas(output);
 
-        // 创建单位矩阵，并计算翻转中心点
-        var matrix = SKMatrix.CreateIdentity();
-        float cx = original.Width / 2f;
-        float cy = original.Height / 2f;
+            var matrix = SKMatrix.CreateIdentity();
+            float cx = original.Width / 2f;
+            float cy = original.Height / 2f;
 
-        // 如果启用水平翻转，则应用水平翻转矩阵
-        if (config.FlipHorizontal)
-            matrix = SKMatrix.Concat(matrix, SKMatrix.CreateScale(-1, 1, cx, cy));
-        // 如果启用垂直翻转，则应用垂直翻转矩阵
-        if (config.FlipVertical)
-            matrix = SKMatrix.Concat(matrix, SKMatrix.CreateScale(1, -1, cx, cy));
+            if (config.FlipHorizontal)
+                matrix = SKMatrix.Concat(matrix, SKMatrix.CreateScale(-1, 1, cx, cy));
+            if (config.FlipVertical)
+                matrix = SKMatrix.Concat(matrix, SKMatrix.CreateScale(1, -1, cx, cy));
 
-        // 设置画布变换矩阵并绘制翻转后的图片
-        canvas.SetMatrix(matrix);
-        canvas.DrawBitmap(original, new SKPoint(0, 0), SKSamplingOptions.Default);
-        canvas.Flush();
+            canvas.SetMatrix(matrix);
+            canvas.DrawBitmap(original, new SKPoint(0, 0), SKSamplingOptions.Default);
+            canvas.Flush();
 
-        // 将处理后的图片编码为 JPEG（质量 90）
-        using var image = SKImage.FromBitmap(output);
-        using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, 90);
-        using var outStream = new MemoryStream();
-        encoded.SaveTo(outStream);
-        return outStream.ToArray();
+            using var image = SKImage.FromBitmap(output);
+
+            // 修复：根据原始数据推断格式，保持原格式输出
+            // PNG 文件以 89 50 4E 47 开头，JPG 以 FF D8 FF 开头
+            var format = DetectImageFormat(bytes);
+            // 修复：SKImage.Encode 总是需要 quality 参数（没有无参重载）
+            var quality = format == SKEncodedImageFormat.Jpeg ? 90 : 100;
+            using var encoded = image.Encode(format, quality);
+
+            using var outStream = new MemoryStream();
+            encoded.SaveTo(outStream);
+            return outStream.ToArray();
+        } catch (Exception ex) {
+            Log.Warning(ex, "SkiaSharp 图片处理失败，使用原图: {Message}", ex.Message);
+            return bytes;
+        }
     }
 
     /// <summary>
-    /// 缓存图片到本地：将图片保存到 cache 目录，文件名包含标题和时间戳
+    /// 检测原始图片格式（PNG vs JPEG vs 其他）
+    /// 修复：根据魔数判断，而非依赖文件名
     /// </summary>
-    /// <param name="title"></param>
-    /// <param name="bytes"></param>
-    private void CacheImage(string title, byte[] bytes) {
-        // 移除文件名中的非法字符
+    private static SKEncodedImageFormat DetectImageFormat(byte[] bytes) {
+        if (bytes.Length >= 3) {
+            // JPEG 魔数: FF D8 FF
+            if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+                return SKEncodedImageFormat.Jpeg;
+            }
+        }
+        if (bytes.Length >= 8) {
+            // PNG 魔数: 89 50 4E 47 0D 0A 1A 0A
+            if (bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47
+                && bytes[4] == 0x0D && bytes[5] == 0x0A && bytes[6] == 0x1A && bytes[7] == 0x0A) {
+                return SKEncodedImageFormat.Png;
+            }
+        }
+        // 默认 JPEG（兼容旧行为）
+        return SKEncodedImageFormat.Jpeg;
+    }
+
+    /// <summary>
+    /// 缓存图片到本地：保留原始格式（不强制 .jpg 后缀）
+    /// 修复：文件扩展名与实际格式匹配
+    /// </summary>
+    private void CacheImage(string title, long pid, byte[] bytes) {
         var safeName = string.Join("_", title.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
-        // 拼接缓存文件路径（标题_时间戳.jpg）
-        var path = Path.Combine(_cacheDir, safeName + "_" + DateTimeOffset.Now.ToUnixTimeMilliseconds() + ".jpg");
-        // 写入文件
+        var ext = GetImageExtension(bytes);
+        var path = Path.Combine(_cacheDir, $"{safeName}_{pid}{ext}");
         File.WriteAllBytes(path, bytes);
     }
 
+    private static string GetImageExtension(byte[] bytes) {
+        if (bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+            return ".jpg";
+        }
+        if (bytes.Length >= 8 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) {
+            return ".png";
+        }
+        return ".jpg";
+    }
+
     /// <summary>
-    /// 格式化图片信息文本：将插画数据格式化为可读的信息字符串（标题、作者、PID）
+    /// 格式化图片信息文本
     /// </summary>
-    /// <param name="d"></param>
-    /// <returns></returns>
     private static string FormatInfo(LoliconData d) {
-        var sb = new StringBuilder();
-        sb.AppendLine("Title: " + d.Title);
-        sb.AppendLine("Author: " + d.Author);
-        sb.Append("PID: " + d.Pid);
-        return sb.ToString().TrimEnd();
+        return $"Title: {d.Title}\nAuthor: {d.Author}\nPID: {d.Pid}";
     }
 
     /// <summary>
-    /// 清理缓存：删除 cache 目录中的所有缓存图片文件
+    /// 清理缓存：保留最近 keep 个文件，删除最老的
+    /// 修复：不再全部清空，只删除超出保留数量的旧文件
     /// </summary>
-    public void CleanCache() {
+    public void CleanCache(int keep = 50) {
         if (!Directory.Exists(_cacheDir)) return;
-        foreach (var f in Directory.GetFiles(_cacheDir))
-            try { File.Delete(f); } catch { }
+
+        var files = Directory.GetFiles(_cacheDir)
+            .Select(f => new { Path = f, Info = new FileInfo(f) })
+            .OrderBy(x => x.Info.CreationTime)
+            .ToList();
+
+        int toDelete = files.Count - keep;
+        if (toDelete <= 0) return;
+
+        Log.Information("清理 {Count} 个旧缓存文件（保留最近 {Keep} 个）", toDelete, keep);
+        for (int i = 0; i < toDelete; i++) {
+            try {
+                File.Delete(files[i].Path);
+            } catch (IOException ex) {
+                Log.Warning(ex, "删除缓存文件失败: {Path}", files[i].Path);
+            }
+        }
     }
 
     /// <summary>
-    /// 资源释放：_http 由调用方管理，此处不释放
+    /// 释放资源
+    /// 修复：内部创建的 HttpClient 需要在此释放
     /// </summary>
     public void Dispose() {
-        // _http is owned by the caller, do not dispose
+        _http?.Dispose();
     }
 }

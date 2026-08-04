@@ -28,3 +28,4 @@ config.json
 # OS
 .DS_Store
 Thumbs.db
+.worktrees/

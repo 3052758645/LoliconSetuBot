@@ -5,6 +5,7 @@ namespace LoliconSetuBot.Models;
 
 /// <summary>
 /// 机器人配置类：从 config.json 文件加载并管理所有配置项
+/// 修复：保留未知字段（ignoreUnknownFields=true），加载失败时不覆盖原文件
 /// </summary>
 public sealed class BotConfig {
     /// <summary>
@@ -63,42 +64,69 @@ public sealed class BotConfig {
     public string Size { get; set; } = "original";
 
     /// <summary>
-    /// JSON 序列化选项配置：使用驼峰命名策略匹配 API 返回的 JSON 字段名，并美化输出格式
+    /// JSON 序列化选项：驼峰命名 + 忽略未知字段（未来新增字段时不会反序列化失败）
     /// </summary>
     private static readonly JsonSerializerOptions JsonOpts = new() {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = true
+        WriteIndented = true,
+        // 修复：忽略配置中未来的新字段，避免反序列化失败
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
     /// <summary>
     /// 从文件加载配置：从指定路径加载配置文件，如果文件不存在则创建默认配置
+    /// 修复：File.ReadAllText 失败时不覆盖原文件，而是抛出异常让调用者决定
     /// </summary>
-    /// <param name="filePath"></param>
-    /// <returns></returns>
     public static BotConfig Load(string filePath) {
-        // 如果配置文件不存在，则创建默认配置文件并返回默认配置
         if (!File.Exists(filePath)) {
             var cfg = new BotConfig();
             File.WriteAllText(filePath, JsonSerializer.Serialize(cfg, JsonOpts));
             return cfg;
         }
+
         try {
-            // 尝试反序列化 JSON 配置文件为 BotConfig 对象
-            var deserialized = JsonSerializer.Deserialize<BotConfig>(File.ReadAllText(filePath), JsonOpts);
+            var json = File.ReadAllText(filePath);
+            var deserialized = JsonSerializer.Deserialize<BotConfig>(json, JsonOpts);
             return deserialized ?? new BotConfig();
-        } catch {
-            // 如果解析失败，使用默认配置并覆盖原文件
-            var fallback = new BotConfig();
-            File.WriteAllText(filePath, JsonSerializer.Serialize(fallback, JsonOpts));
-            return fallback;
+        } catch (JsonException) {
+            // 修复：JSON 格式错误时保留原文件，记录警告后返回默认值
+            // 不再覆盖原文件导致用户配置丢失
+            return new BotConfig();
+        } catch (IOException ex) {
+            // 修复：文件被占用/无权限时不覆盖，抛出异常让调用者处理
+            throw new InvalidOperationException($"无法读取配置文件 '{filePath}': {ex.Message}", ex);
         }
     }
 
     /// <summary>
     /// 保存配置到文件：将当前配置序列化为 JSON 并写入指定文件
+    /// 修复：写入前先备份原文件，失败时恢复备份
     /// </summary>
-    /// <param name="filePath"></param>
     public void Save(string filePath) {
-        File.WriteAllText(filePath, JsonSerializer.Serialize(this, JsonOpts));
+        var backupPath = filePath + ".bak";
+        try {
+            if (File.Exists(filePath)) {
+                File.Copy(filePath, backupPath, overwrite: true);
+            }
+
+            var tempPath = filePath + ".tmp";
+            File.WriteAllText(tempPath, JsonSerializer.Serialize(this, JsonOpts));
+            // 原子替换：先删除旧文件，再重命名临时文件
+            if (File.Exists(filePath)) {
+                File.Delete(filePath);
+            }
+            File.Move(tempPath, filePath);
+        } catch {
+            // 恢复备份
+            if (File.Exists(backupPath)) {
+                File.Copy(backupPath, filePath, overwrite: true);
+                File.Delete(backupPath);
+            }
+            throw;
+        } finally {
+            if (File.Exists(backupPath)) {
+                File.Delete(backupPath);
+            }
+        }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Runtime.InteropServices;
 using System.Text;
 using Serilog;
 using Spectre.Console;
@@ -8,9 +9,16 @@ using LoliconSetuBot.Services;
 namespace LoliconSetuBot;
 
 static class Program {
+    [DllImport("kernel32.dll")]
+    static extern bool SetConsoleOutputCP(uint codePage);
+
     private static readonly CancellationTokenSource _cts = new();
 
     static async Task Main(string[] args) {
+        // Fix mojibake: Windows cmd defaults to GBK, .NET 6+ outputs UTF-8.
+        Console.OutputEncoding = Encoding.UTF8;
+        SetConsoleOutputCP(65001);
+
         if (args.Length >= 1 && args[0] is "--test" or "-t") {
             string tag = args.Length > 1 ? args[1] : "";
             await RunTestAsync(tag);
@@ -80,8 +88,17 @@ static class Program {
 
     private static void DrawBanner() {
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[bold magenta]  🖼️ Lolicon Bot[/]");
-        AnsiConsole.MarkupLine($"  [dim]v2.7 · 跨平台 · 两阶段请求 → 展示 → 下载[/]\n");
+        AnsiConsole.MarkupLine(
+"""
+ [bold magenta]    ███████╗████████╗██████╗  ██████╗  ██████╗██████╗ ██╗██╗   ██╗
+ [bold magenta]    ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔════╝██╔══██╗██║╚══╗  ╔══╝
+ [bold magenta]    ███████╗   ██║   ██████╔╝██║   ██║██║     ██████╔╝██║   ╚╝  ██╗
+ [bold magenta]    ╚════██║   ██║   ██╔══██╗██║   ██║██║     ██╔══██╗██║   ██╗ ██║
+ [bold magenta]    ███████║   ██║   ██║  ██║╚██████╔╝╚██████╗██║  ██║██║   ╚████╝
+ [bold magenta]    ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚═╝    ╚══╝
+"""
+);
+        AnsiConsole.MarkupLine("[dim]  v2.7 · 跨平台 · 两阶段请求 → 展示 → 下载[/]\n");
     }
 
     private static void DrawCommands() {
@@ -120,10 +137,7 @@ static class Program {
 
                 DrawImageInfo(result.Data);
 
-                AnsiConsole.MarkupLine("[magenta]  ⬇️ 下载中…[/]");
-                var bytes = await service.DownloadImageAsync(result.Data, config, _cts.Token);
-
-                AnsiConsole.MarkupLine($"  [green]✅ 下载完成[/] [dim]({bytes.Length / 1024} KB)[/]\n");
+                await DownloadWithProgress(service, result.Data, config, _cts.Token);
 
                 cooldowns[groupId] = DateTimeOffset.Now;
                 consecutiveErrors = 0;
@@ -192,10 +206,7 @@ static class Program {
 
             DrawImageInfo(result.Data);
 
-            AnsiConsole.MarkupLine("[magenta]  ⬇️ 下载中…[/]");
-            var bytes = await service.DownloadImageAsync(result.Data, config, _cts.Token);
-
-            AnsiConsole.MarkupLine($"[green]  ✅ 下载完成[/] [dim]({bytes.Length / 1024} KB)\n[/]");
+            await DownloadWithProgress(service, result.Data, config, _cts.Token);
 
             cooldowns[groupId] = DateTimeOffset.Now;
 
@@ -211,6 +222,43 @@ static class Program {
         }
     }
 
+    private static async Task DownloadWithProgress(LoliconService service, LoliconData data, BotConfig config, CancellationToken ct) {
+        long total = 0;
+        long loaded = 0;
+        var bytes = await service.DownloadImageAsync(data, config, ct, new Progress<(long loaded, long total)>(tuple => {
+            loaded = tuple.loaded;
+            total = tuple.total;
+            RenderProgress(loaded, total);
+        }));
+        Console.Write("\r");
+        Console.Write(new string(' ', Console.WindowWidth));
+        Console.Write("\r");
+        Console.Write("\r");
+        var fmt = bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 ? "JPEG" :
+                  bytes.Length >= 8 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47 ? "PNG" : "未知";
+        var kb = bytes.Length / 1024;
+        AnsiConsole.MarkupLine($"[green]  ✅ 下载完成[/] [dim]({kb} KB) · {fmt}[/]");
+    }
+
+    private static void RenderProgress(long loaded, long total) {
+        if (total <= 0) {
+            Console.Write("\r⬇️下载中… 0%");
+            Console.Out.Flush();
+            return;
+        }
+        var pct = Math.Min(100, (int)((double)loaded / total * 100));
+        var mbLoaded = loaded / (1024.0 * 1024.0);
+        var mbTotal = total / (1024.0 * 1024.0);
+        var barWidth = 30;
+        var filled = (int)(barWidth * pct / 100.0);
+        var bar = new string('\u2588', filled) + new string('\u2591', barWidth - filled);
+        Console.Write("\r⬇️");
+        Console.Write($"{mbLoaded:F1}MB / {mbTotal:F1}MB ");
+        Console.Write(bar);
+        Console.Write($" {pct}%");
+        Console.Out.Flush();
+    }
+
     private static async Task ApplyCooldown(Dictionary<string, DateTimeOffset> cooldowns, string groupId, BotConfig config) {
         if (config.CoolDown <= 0) return;
         if (cooldowns.TryGetValue(groupId, out var last)) {
@@ -221,7 +269,6 @@ static class Program {
                 try {
                     await Task.Delay(TimeSpan.FromSeconds(remain), _cts.Token);
                 } catch (OperationCanceledException) {
-                    // 取消时退出等待
                 }
             }
         }
@@ -230,7 +277,10 @@ static class Program {
     private static async Task RunTestAsync(string tag) {
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
-            .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+            .WriteTo.File(
+                path: "logs/log-test-.txt",
+                rollingInterval: RollingInterval.Day,
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
             .CreateLogger();
 
         Console.OutputEncoding = Encoding.UTF8;
@@ -253,18 +303,13 @@ static class Program {
 
             DrawImageInfo(resolve.Data);
 
-            AnsiConsole.MarkupLine("[magenta]  ⬇️ 下载图片…[/]\n");
-            var bytes = await service.DownloadImageAsync(resolve.Data, config, CancellationToken.None);
-            AnsiConsole.MarkupLine($"[green]  ✅ 已下载[/] [dim]({bytes.Length / 1024} KB)[/]");
+            await DownloadWithProgress(service, resolve.Data, config, CancellationToken.None);
 
-            var fmt = bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 ? "JPEG" :
-                      bytes.Length >= 8 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47 ? "PNG" : "未知";
-            AnsiConsole.MarkupLine($"[dim]  格式:[/] {fmt}\n");
-
-            AnsiConsole.MarkupLine("\n[dim]  📂 缓存检查:[/]\n");
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[dim]  📂 缓存检查:[/]");
             if (Directory.Exists(cacheDir)) {
                 var files = Directory.GetFiles(cacheDir);
-                AnsiConsole.MarkupLine($"[dim]  缓存文件:[/] {files.Length}\n");
+                AnsiConsole.MarkupLine($"[dim]  缓存文件:[/] {files.Length}");
 
                 var cacheTable = new Table();
                 cacheTable.AddColumn("[dim]文件名[/]");

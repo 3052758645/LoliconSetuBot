@@ -216,13 +216,34 @@ public sealed class LoliconService : IDisposable {
     /// 根据已解析的元数据下载并处理图片
     /// 用于"先展示信息、后下载"的两阶段流程
     /// </summary>
-    public async Task<byte[]> DownloadImageAsync(LoliconData data, BotConfig config, CancellationToken ct = default) {
+    /// <param name="data">已解析的图片元数据</param>
+    /// <param name="config">配置</param>
+    /// <param name="ct">取消令牌</param>
+    /// <param name="progress">进度回调 (当前字节数, 总字节数)</param>
+    public async Task<byte[]> DownloadImageAsync(LoliconData data, BotConfig config, CancellationToken ct = default, IProgress<(long loaded, long total)>? progress = null) {
         var imageUrl = GetImageUrl(data, config.Size) ?? data.Urls.Original;
         if (string.IsNullOrEmpty(imageUrl))
             throw new InvalidOperationException("Image URL is empty.");
 
         Log.Debug("下载图片: {Url}", imageUrl);
-        var rawBytes = await _http.GetByteArrayAsync(imageUrl, ct);
+
+        using var response = await _http.GetAsync(imageUrl, HttpCompletionOption.ResponseHeadersRead, ct);
+        response.EnsureSuccessStatusCode();
+
+        var totalBytes = response.Content.Headers.ContentLength ?? -1;
+        var ms = new MemoryStream();
+        using var stream = await response.Content.ReadAsStreamAsync(ct);
+        var buffer = new byte[65536]; // 64KB 缓冲
+        int bytesRead;
+        long totalRead = 0;
+
+        while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, ct)) > 0) {
+            ms.Write(buffer, 0, bytesRead);
+            totalRead += bytesRead;
+            progress?.Report((totalRead, totalBytes));
+        }
+
+        var rawBytes = ms.ToArray();
 
         // 原始图片缓存
         CacheImage(data.Title, data.Pid, rawBytes);

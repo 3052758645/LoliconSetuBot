@@ -79,7 +79,7 @@ static class Program {
             AnsiConsole.MarkupLine("[dim]  程序已取消。[/]");
             Log.Information("程序已取消。");
         } catch (Exception ex) {
-            AnsiConsole.MarkupLine($"[red]  ❌ 程序异常终止:[/][red1]{ex.Message}[/]");
+            AnsiConsole.MarkupLine($"[red]  ❌ 程序异常终止:[/] [red1]{Escape(ex.Message)}[/]");
             Log.Fatal(ex, "程序异常终止");
         } finally {
             Log.CloseAndFlush();
@@ -87,18 +87,16 @@ static class Program {
     }
 
     private static void DrawBanner() {
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine(
-"""
- [bold magenta]    ███████╗████████╗██████╗  ██████╗  ██████╗██████╗ ██╗██╗   ██╗
- [bold magenta]    ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔════╝██╔══██╗██║╚══╗  ╔══╝
- [bold magenta]    ███████╗   ██║   ██████╔╝██║   ██║██║     ██████╔╝██║   ╚╝  ██╗
- [bold magenta]    ╚════██║   ██║   ██╔══██╗██║   ██║██║     ██╔══██╗██║   ██╗ ██║
- [bold magenta]    ███████║   ██║   ██║  ██║╚██████╔╝╚██████╗██║  ██║██║   ╚████╝
- [bold magenta]    ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚═╝    ╚══╝
-"""
-);
-        AnsiConsole.MarkupLine("[dim]  v2.7 · 跨平台 · 两阶段请求 → 展示 → 下载[/]\n");
+        Console.WriteLine();
+        Console.WriteLine(@"   ____  _            _  ____          _                 ");
+        Console.WriteLine(@"  / ___|| |_ _ __ __| || ___| _   _  | |_ ___  __ _    ");
+        Console.WriteLine(@"  \___ \| __| '__/ _` ||___ \| | | | | __/ _ \/ _` |   ");
+        Console.WriteLine(@"   ___) | |_| || (_| | ___) | |_| | | ||  __/ (_| |   ");
+        Console.WriteLine(@"  |____/ \__|_| \__,_||____/ \__, |  \__\___|\__,_|   ");
+        Console.WriteLine(@"                             |___/                    ");
+        Console.WriteLine();
+        Console.WriteLine("  v2.7 · 跨平台 · 两阶段请求 → 展示 → 下载");
+        Console.WriteLine();
     }
 
     private static void DrawCommands() {
@@ -217,7 +215,7 @@ static class Program {
         } catch (OperationCanceledException) {
             AnsiConsole.MarkupLine("[dim]  请求已取消。[/]");
         } catch (Exception ex) {
-            AnsiConsole.MarkupLine($"[red]  ❌ 获取图片失败:[/][red1]{ex.Message}[/]\n");
+            AnsiConsole.MarkupLine($"[red]  ❌ 获取图片失败:[/][red1]{Escape(ex.Message)}[/]\n");
             Log.Error(ex, "获取图片失败");
         }
     }
@@ -225,14 +223,17 @@ static class Program {
     private static async Task DownloadWithProgress(LoliconService service, LoliconData data, BotConfig config, CancellationToken ct) {
         long total = 0;
         long loaded = 0;
+        var lastPct = -1;
         var bytes = await service.DownloadImageAsync(data, config, ct, new Progress<(long loaded, long total)>(tuple => {
             loaded = tuple.loaded;
             total = tuple.total;
-            RenderProgress(loaded, total);
+            if (total > 0) {
+                var pct = (int)((double)loaded / total * 100);
+                if (pct - lastPct >= 1) { lastPct = pct; RenderProgress(loaded, total); }
+            }
         }));
         Console.Write("\r");
         Console.Write(new string(' ', Console.WindowWidth));
-        Console.Write("\r");
         Console.Write("\r");
         var fmt = bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 ? "JPEG" :
                   bytes.Length >= 8 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47 ? "PNG" : "未知";
@@ -242,8 +243,7 @@ static class Program {
 
     private static void RenderProgress(long loaded, long total) {
         if (total <= 0) {
-            Console.Write("\r⬇️下载中… 0%");
-            Console.Out.Flush();
+            Console.WriteLine("⬇️ 下载中… 0%");
             return;
         }
         var pct = Math.Min(100, (int)((double)loaded / total * 100));
@@ -252,7 +252,7 @@ static class Program {
         var barWidth = 30;
         var filled = (int)(barWidth * pct / 100.0);
         var bar = new string('\u2588', filled) + new string('\u2591', barWidth - filled);
-        Console.Write("\r⬇️");
+        Console.Write("⬇️");
         Console.Write($"{mbLoaded:F1}MB / {mbTotal:F1}MB ");
         Console.Write(bar);
         Console.Write($" {pct}%");

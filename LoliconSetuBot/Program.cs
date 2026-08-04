@@ -15,7 +15,7 @@ static class Program {
     private static readonly CancellationTokenSource _cts = new();
 
     private static void PrintHelp() {
-        AnsiConsole.MarkupLine("[bold]LoliconSetuBot v2.7[/]\n");
+        AnsiConsole.MarkupLine("[bold]LoliconSetuBot v1.1[/]\n");
         AnsiConsole.MarkupLine("[bold]用法:[/]\n");
         // 不用 Markup 输出 --tag 等内容，避免 Markup 解析冲突
         Console.Write("  dotnet run -- --tag <tag> --count <n> --infinite --interval <ms> --quiet --help\n");
@@ -132,15 +132,19 @@ static class Program {
     }
 
     private static void DrawBanner() {
+        var lines = new[] {
+            "___        ________   ___        ___   ________   ________   ________    ________   _______   _________   ___  ___   ________   ________   _________   ",
+            "|\\  \\      |\\   __  \\ |\\  \\      |\\  \\ |\\   ____\\ |\\   __  \\ |\\   ___  \\ |\\   ____\\ |\\  ___ \\ |\\___   ___\\|\\  \\|\\  \\ |\\   __  \\ |\\   __  \\ |\\___   ___\\ ",
+            "\\ \\  \\     \\ \\  \\|\\  \\ \\ \\  \\     \\ \\  \\ \\ \\  \\___| \\ \\  \\|\\  \\ \\ \\  \\ \\ \\  \\ \\ \\  \\___|_ \\ \\   __/|\\|___ \\  \\_|\\ \\  \\ \\  \\|\\ /_\\ \\  \\|\\  \\|___ \\  \\_| ",
+            " \\ \\  \\     \\ \\  \\ \\  \\ \\ \\  \\     \\ \\  \\ \\ \\  \\     \\ \\  \\ \\  \\ \\ \\  \\ \\ \\  \\ \\_____  \\ \\ \\  \\_|/__   \\ \\  \\  \\ \\  \\ \\  \\ \\   __  \\ \\ \\  \\ \\ \\    \\ \\  \\  ",
+            "  \\ \\  \\____ \\ \\  \\ \\  \\ \\ \\  \\____ \\ \\  \\ \\ \\  \\____ \\ \\  \\ \\  \\ \\ \\  \\ \\ \\  \\|_____|\\  \\ \\ \\  |_|\\ \\   \\ \\  \\  \\ \\  \\ \\  \\|\\  \\ \\ \\  \\ \\ \\    \\ \\  \\ ",
+            "   \\ \\_______\\ \\_______\\ \\ \\_______\\ \\__\\ \\ \\_______\\ \\_______\\ \\__\\ \\ \\__\\ ____\\_\\ \\ \\_______\\   \\ \\__\\  \\ \\_______\\ \\ \\_______\\ \\ \\_______\\    \\ \\__\\",
+            "    \\|_______| \\|_______| \\|_______| \\|__| \\|_______| \\|_______| \\|__| \\|__||\\_________|\\|_______|    \\|__|   \\|_______| \\|_______| \\|_______|     \\|__|",
+            "                                                                            \\|_________|",
+        };
+        foreach (var line in lines) Console.WriteLine(line);
         Console.WriteLine();
-        Console.WriteLine(@"   ____  _            _  ____          _                 ");
-        Console.WriteLine(@"  / ___|| |_ _ __ __| || ___| _   _  | |_ ___  __ _    ");
-        Console.WriteLine(@"  \___ \| __| '__/ _` ||___ \| | | | | __/ _ \/ _` |   ");
-        Console.WriteLine(@"   ___) | |_| || (_| | ___) | |_| | | ||  __/ (_| |   ");
-        Console.WriteLine(@"  |____/ \__|_| \__,_||____/ \__, |  \__\___|\__,_|   ");
-        Console.WriteLine(@"                             |___/                    ");
-        Console.WriteLine();
-        Console.WriteLine("  v2.7 · 跨平台 · 两阶段请求 → 展示 → 下载");
+        Console.WriteLine("  v1.1 · 跨平台 · 两阶段请求 → 展示 → 下载");
         Console.WriteLine();
     }
 
@@ -214,7 +218,7 @@ static class Program {
                 var result = await service.ResolveAsync(tag ?? "", config, _cts.Token);
 
                 if (!quiet) DrawImageInfo(result.Data);
-                else Console.WriteLine($"  ⬇️ {result.Data.Title} — {result.Data.Author}");
+                else AnsiConsole.MarkupLine($"  ⬇️ {Escape(result.Data.Title)} — {Escape(result.Data.Author)}");
 
                 await DownloadWithProgress(service, result.Data, config, _cts.Token);
 
@@ -286,7 +290,7 @@ static class Program {
             var result = await service.ResolveAsync(tag, config, _cts.Token);
 
             if (!quiet) DrawImageInfo(result.Data);
-            else Console.WriteLine($"  ⬇️ {result.Data.Title} — {result.Data.Author}");
+            else AnsiConsole.MarkupLine($"  ⬇️ {Escape(result.Data.Title)} — {Escape(result.Data.Author)}");
 
             await DownloadWithProgress(service, result.Data, config, _cts.Token);
 
@@ -305,43 +309,49 @@ static class Program {
     }
 
     private static async Task DownloadWithProgress(LoliconService service, LoliconData data, BotConfig config, CancellationToken ct) {
-        long total = 0;
-        long loaded = 0;
-        var lastPct = -1;
-        var bytes = await service.DownloadImageAsync(data, config, ct, new Progress<(long loaded, long total)>(tuple => {
-            loaded = tuple.loaded;
-            total = tuple.total;
-            if (total > 0) {
-                var pct = (int)((double)loaded / total * 100);
-                if (pct - lastPct >= 1) { lastPct = pct; RenderProgress(loaded, total); }
-            }
-        }));
-        Console.Write("\r");
-        if (!Console.IsOutputRedirected) { Console.Write(new string(' ', Console.WindowWidth)); }
-        Console.Write("\r");
+        byte[] bytes;
+        try {
+            bytes = await AnsiConsole.Progress().StartAsync(async ctx => {
+                var task = ctx.AddTask("⬇️ 下载中...");
+                task.MaxValue = 100;
+                task.StartTask();
+
+                var downloadedBytes = 0L;
+                var totalBytes = 0L;
+
+                var bytes = await service.DownloadImageAsync(data, config, ct, new Progress<(long loaded, long total)>(tuple => {
+                    downloadedBytes = tuple.loaded;
+                    totalBytes = tuple.total;
+                    if (totalBytes > 0) {
+                        var pct = (int)((double)downloadedBytes / totalBytes * 100);
+                        task.Value = Math.Min(100, pct);
+                        task.Description = $"⬇️ {downloadedBytes / (1024.0 * 1024.0):F1}MB / {totalBytes / (1024.0 * 1024.0):F1}MB ({Math.Min(100, pct)}%)";
+                    } else {
+                        task.Description = $"⬇️ 下载中... {downloadedBytes / (1024.0 * 1024.0):F1}MB";
+                    }
+                }));
+
+                task.Value = 100;
+                if (totalBytes > 0) {
+                    task.Description = $"✅ 下载完成 ({downloadedBytes / (1024.0 * 1024.0):F1}MB)";
+                } else {
+                    task.Description = $"✅ 下载完成 ({downloadedBytes / (1024.0 * 1024.0):F1}MB)";
+                }
+                task.StopTask();
+                return bytes;
+            });
+        } catch (OperationCanceledException) {
+            throw;
+        } catch (Exception ex) {
+            throw new InvalidOperationException($"下载失败: {ex.Message}", ex);
+        }
         var fmt = bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 ? "JPEG" :
                   bytes.Length >= 8 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47 ? "PNG" : "未知";
         var kb = bytes.Length / 1024;
         AnsiConsole.MarkupLine($"[green]  ✅ 下载完成[/] [dim]({kb} KB) · {fmt}[/]");
     }
 
-    private static void RenderProgress(long loaded, long total) {
-        if (total <= 0) {
-            Console.WriteLine("⬇️ 下载中… 0%");
-            return;
-        }
-        var pct = Math.Min(100, (int)((double)loaded / total * 100));
-        var mbLoaded = loaded / (1024.0 * 1024.0);
-        var mbTotal = total / (1024.0 * 1024.0);
-        var barWidth = 30;
-        var filled = (int)(barWidth * pct / 100.0);
-        var bar = new string('\u2588', filled) + new string('\u2591', barWidth - filled);
-        Console.Write("⬇️");
-        Console.Write($"{mbLoaded:F1}MB / {mbTotal:F1}MB ");
-        Console.Write(bar);
-        Console.Write($" {pct}%");
-        Console.Out.Flush();
-    }
+
 
     private static async Task ApplyCooldown(Dictionary<string, DateTimeOffset> cooldowns, string groupId, BotConfig config) {
         if (config.CoolDown <= 0) return;

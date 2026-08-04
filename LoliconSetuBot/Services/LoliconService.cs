@@ -41,7 +41,7 @@ public sealed class LoliconService : IDisposable {
         _http = new HttpClient(handler, disposeHandler: true) {
             Timeout = TimeSpan.FromSeconds(60),
             DefaultRequestHeaders = {
-                UserAgent = { new("LoliconSetuBot", "2.7") }
+                UserAgent = { new("LoliconSetuBot", "1.1") }
             }
         };
 
@@ -221,29 +221,50 @@ public sealed class LoliconService : IDisposable {
     /// <param name="ct">取消令牌</param>
     /// <param name="progress">进度回调 (当前字节数, 总字节数)</param>
     public async Task<byte[]> DownloadImageAsync(LoliconData data, BotConfig config, CancellationToken ct = default, IProgress<(long loaded, long total)>? progress = null) {
-        var imageUrl = GetImageUrl(data, config.Size) ?? data.Urls.Original;
-        if (string.IsNullOrEmpty(imageUrl))
-            throw new InvalidOperationException("Image URL is empty.");
+        // 构建备选 URL 列表：优先使用配置的尺寸，fallback 按质量递减
+        var fallbackUrls = new List<string?> {
+            GetImageUrl(data, config.Size),
+            data.Urls.Original,
+            data.Urls.Regular,
+            data.Urls.Small,
+            data.Urls.Mini,
+            data.Urls.Thumb
+        };
 
-        Log.Debug("下载图片: {Url}", imageUrl);
+        var totalBytes = -1L;
+        byte[]? rawBytes = null;
 
-        using var response = await _http.GetAsync(imageUrl, HttpCompletionOption.ResponseHeadersRead, ct);
-        response.EnsureSuccessStatusCode();
+        foreach (var url in fallbackUrls) {
+            if (string.IsNullOrEmpty(url)) continue;
 
-        var totalBytes = response.Content.Headers.ContentLength ?? -1;
-        var ms = new MemoryStream();
-        using var stream = await response.Content.ReadAsStreamAsync(ct);
-        var buffer = new byte[65536]; // 64KB 缓冲
-        int bytesRead;
-        long totalRead = 0;
+            Log.Debug("下载图片 (尝试): {Url}", url);
+            using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
 
-        while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, ct)) > 0) {
-            ms.Write(buffer, 0, bytesRead);
-            totalRead += bytesRead;
-            progress?.Report((totalRead, totalBytes));
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound) {
+                Log.Debug("URL 返回 404，尝试下一个备选 URL: {Url}", url);
+                continue;
+            }
+
+            response.EnsureSuccessStatusCode();
+            totalBytes = response.Content.Headers.ContentLength ?? -1;
+            var ms = new MemoryStream();
+            using var stream = await response.Content.ReadAsStreamAsync(ct);
+            var buffer = new byte[65536]; // 64KB 缓冲
+            int bytesRead;
+            long totalRead = 0;
+
+            while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, ct)) > 0) {
+                ms.Write(buffer, 0, bytesRead);
+                totalRead += bytesRead;
+                progress?.Report((totalRead, totalBytes > 0 ? totalBytes : 0));
+            }
+
+            rawBytes = ms.ToArray();
+            break; // 下载成功，退出循环
         }
 
-        var rawBytes = ms.ToArray();
+        if (rawBytes == null)
+            throw new InvalidOperationException("所有图片 URL 均无法访问 (404)。");
 
         // 原始图片缓存
         CacheImage(data.Title, data.Pid, rawBytes);

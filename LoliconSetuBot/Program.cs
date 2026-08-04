@@ -10,6 +10,15 @@ static class Program {
     private static readonly CancellationTokenSource _cts = new();
 
     static async Task Main(string[] args) {
+        // 测试模式：dotnet run -- --test [tag]
+        // 例: dotnet run -- --test         请求随机图（空标签）
+        //     dotnet run -- --test 校园      请求指定标签
+        if (args.Length >= 1 && args[0] is "--test" or "-t") {
+            string tag = args.Length > 1 ? args[1] : "";
+            await RunTestAsync(tag);
+            return;
+        }
+
         // 初始化日志：控制台 + 文件（带 7 天轮转）
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
@@ -23,9 +32,10 @@ static class Program {
 
         try {
             Console.OutputEncoding = Encoding.UTF8;
+            // 跨平台：Console.Title 在 Linux/macOS terminal 中无效但不会报错，安全
             Console.Title = "Lolicon Bot";
             Console.ForegroundColor = ConsoleColor.Magenta;
-            Console.WriteLine("Lolicon Bot v1.1 (Serilog + Retry Fix + Cache Cleanup + Format Preserve)");
+            Console.WriteLine("Lolicon Bot v1.2 (Cross-Platform Fix)");
             Console.ResetColor();
             Console.WriteLine("命令:");
             Console.WriteLine("  来张[标签]涩图   - 获取单张（标签可选）");
@@ -205,6 +215,87 @@ static class Program {
                     // 取消时退出等待
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// 测试模式：执行一次 API 请求，验证输出和缓存
+    /// 用法: dotnet run -- --test [tag]
+    /// </summary>
+    private static async Task RunTestAsync(string tag) {
+        // 初始化日志（仅控制台，避免文件写入影响）
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Debug()
+            .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+            .CreateLogger();
+
+        Console.OutputEncoding = Encoding.UTF8;
+        Console.WriteLine("=== 功能测试模式 ===");
+        Console.WriteLine($"标签: '{tag}'");
+        Console.WriteLine();
+
+        try {
+            // 加载配置
+            var config = BotConfig.Load("config.json");
+            Log.Information("配置已加载: r18={R18}, size={Size}, proxy={Proxy}", config.R18, config.Size, config.Proxy);
+
+            // 清理旧缓存
+            using var service = new LoliconService();
+            service.CleanCache(keep: 50);
+
+            var cacheDir = Path.Combine(AppContext.BaseDirectory, "cache");
+            Console.WriteLine($"缓存目录: {cacheDir}");
+            Console.WriteLine($"缓存目录内容: {(Directory.Exists(cacheDir) ? Directory.GetFiles(cacheDir).Length.ToString() + " 个文件" : "不存在")}");
+            Console.WriteLine();
+
+            // 执行请求
+            Console.WriteLine("[API] 正在请求...");
+            var result = await service.FetchAsync(tag, config, CancellationToken.None);
+
+            // 输出结果
+            Console.WriteLine();
+            Console.WriteLine("=== API 响应 ===");
+            if (!string.IsNullOrEmpty(result.InfoText)) {
+                Console.WriteLine($"[INFO] {result.InfoText}");
+            }
+            Console.WriteLine($"[IMAGE] 大小: {result.ImageBytes.Length} bytes ({result.ImageBytes.Length / 1024} KB)");
+            Console.WriteLine($"[IMAGE] 格式判断: {(result.ImageBytes.Length >= 3 && result.ImageBytes[0] == 0xFF && result.ImageBytes[1] == 0xD8 ? "JPEG" : "PNG/其他")}");
+
+            // 检查缓存
+            Console.WriteLine();
+            Console.WriteLine("=== 缓存检查 ===");
+            if (Directory.Exists(cacheDir)) {
+                var files = Directory.GetFiles(cacheDir);
+                Console.WriteLine($"缓存文件数量: {files.Length}");
+                foreach (var f in files) {
+                    var fi = new FileInfo(f);
+                    Console.WriteLine($"  - {fi.Name} ({fi.Length} bytes, 创建时间: {fi.CreationTime:HH:mm:ss})");
+
+                    // 验证文件魔数
+                    var fileBytes = await File.ReadAllBytesAsync(f);
+                    string detected = fileBytes.Length >= 3 && fileBytes[0] == 0xFF && fileBytes[1] == 0xD8 ? "JPEG" :
+                                      fileBytes.Length >= 8 && fileBytes[0] == 0x89 && fileBytes[1] == 0x50 && fileBytes[2] == 0x4E && fileBytes[3] == 0x47 ? "PNG" : "未知";
+                    Console.WriteLine($"    [魔数检测] {detected}");
+                }
+            } else {
+                Console.WriteLine("[WARN] 缓存目录不存在");
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("=== 测试完成 ===");
+            Log.Information("测试完成");
+        } catch (Exception ex) {
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"[ERROR] {ex.GetType().Name}: {ex.Message}");
+            Console.ResetColor();
+            if (ex.InnerException != null) {
+                Console.WriteLine($"  内部异常: {ex.InnerException.Message}");
+            }
+            Log.Error(ex, "测试失败");
+            Environment.Exit(1);
+        } finally {
+            Log.CloseAndFlush();
         }
     }
 }

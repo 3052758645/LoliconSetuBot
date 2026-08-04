@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Net.Http;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 using System.Text;
@@ -32,15 +33,17 @@ public sealed class LoliconService : IDisposable {
     /// 修复：HttpClient 不再由外部传入（避免 using 语义错误），由本类负责创建和释放
     /// </summary>
     public LoliconService() {
-        // 修复：HttpClient 是长生命周期单例，不再被 using 包裹
-        _http = new HttpClient {
+        // 跨平台：用 SocketsHttpHandler 替代 ServicePointManager（已在 .NET 10 标记过时，Linux 行为不一致）
+        var handler = new SocketsHttpHandler {
+            PooledConnectionLifetime = TimeSpan.FromMinutes(15),
+            MaxConnectionsPerServer = 50
+        };
+        _http = new HttpClient(handler, disposeHandler: true) {
             Timeout = TimeSpan.FromSeconds(60),
             DefaultRequestHeaders = {
-                UserAgent = { new("LoliconSetuBot/2.7") }
+                UserAgent = { new("LoliconSetuBot", "2.7") }
             }
         };
-        // 限制最大并发连接数，避免被 IP 封禁
-        ServicePointManager.DefaultConnectionLimit = 50;
 
         _cacheDir = Path.Combine(AppContext.BaseDirectory, "cache");
         Directory.CreateDirectory(_cacheDir);

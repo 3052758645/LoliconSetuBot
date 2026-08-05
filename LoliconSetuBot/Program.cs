@@ -184,7 +184,7 @@ static class Program {
         };
         foreach (var line in lines) Console.WriteLine(line);
         Console.WriteLine();
-        Console.WriteLine("  v1.1 · 跨平台 · 两阶段请求 → 展示 → 下载");
+        Console.WriteLine("  v1.2 · 跨平台 · 两阶段请求 → 展示 → 下载");
         Console.WriteLine();
     }
 

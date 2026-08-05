@@ -24,3 +24,6 @@ cache/
 # OS
 .DS_Store
 Thumbs.db
+
+# 工作树（Hermes 自动管理）
+.worktrees/

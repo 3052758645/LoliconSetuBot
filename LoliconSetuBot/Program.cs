@@ -12,6 +12,14 @@ static class Program {
     [DllImport("kernel32.dll")]
     static extern bool SetConsoleOutputCP(uint codePage);
 
+    private static void SetConsoleEncoding() {
+        // Windows: 设置控制台 UTF-8 输出编码
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) {
+            try { SetConsoleOutputCP(65001); } catch { }
+        }
+        Console.OutputEncoding = Encoding.UTF8;
+    }
+
     private static readonly CancellationTokenSource _cts = new();
 
     private static void PrintHelp() {
@@ -40,8 +48,7 @@ static class Program {
 
     static async Task Main(string[] args) {
         // Fix mojibake: Windows cmd defaults to GBK, .NET 6+ outputs UTF-8.
-        Console.OutputEncoding = Encoding.UTF8;
-        SetConsoleOutputCP(65001);
+        SetConsoleEncoding();
 
         if (args.Length >= 1 && args[0] is "--help" or "-h") {
             PrintHelp();

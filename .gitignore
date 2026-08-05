@@ -1,31 +1,26 @@
-# Build results
-[Oo]bj/
-[Bb]in/
+# 构建输出
+bin/
+obj/
 *.dll
 *.exe
-*.pdb
-*.log
 
 # IDE
 .vs/
 .vscode/
-*.user
 *.suo
-*.userosscache
-*.sln.docstates
+*.user
 
 # NuGet
 nuget.config
-*.nupkg
-**/packages/*
+packages/
 
-# Cache
+# 运行时输出
 cache/
+*.log
 
-# Config
-config.json
+# 配置文件（如需追踪配置可删除此行）
+# settings.json
 
 # OS
 .DS_Store
 Thumbs.db
-.worktrees/

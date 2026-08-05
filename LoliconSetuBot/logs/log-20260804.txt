@@ -1,0 +1,12 @@
+2026-08-04 21:44:01.247 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 21:44:01.310 +08:00 [INF] 输出目录: cache/
+2026-08-04 21:44:01.450 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 21:44:03.482 +08:00 [DBG] 下载图片 (尝试): https://i.pixiv.re/img-original/img/2021/07/06/06/29/35/91047484_p0.jpg
+2026-08-04 21:44:12.034 +08:00 [INF] 再见！
+2026-08-04 21:44:22.810 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-04 21:44:22.872 +08:00 [INF] 输出目录: cache/
+2026-08-04 21:44:23.027 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 21:44:26.174 +08:00 [DBG] 下载图片 (尝试): https://i.pixiv.re/img-original/img/2022/03/05/20/16/07/96698908_p0.jpg
+2026-08-04 21:44:33.007 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-04 21:44:34.310 +08:00 [DBG] 下载图片 (尝试): https://i.pixiv.re/img-original/img/2021/07/17/17/28/07/91303825_p1.png
+2026-08-04 21:44:49.533 +08:00 [INF] 再见！

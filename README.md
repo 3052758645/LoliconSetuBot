@@ -1,29 +1,20 @@
 # LoliconSetuBot
 
-二次元插画随机获取工具，基于 [lolicon.app](https://api.lolicon.app) API。
-
-## 功能
-
-- 从 Pixiv 随机获取二次元插画
-- 支持标签筛选（校园、泳装、和风等）
-- R18 过滤与 AI 图排除
-- 图片翻转（水平/垂直）
-- 图片缓存到本地
-- 控制台交互式 REPL 模式
+二次元插画批量获取工具，基于 [lolicon.app](https://api.lolicon.app) API。
 
 ## 快速开始
 
 ```bash
-# 获取单张指定标签的图片
+# 获取指定标签的单张图片
 dotnet run -- --tag 原神
 
-# 获取多张图片
-dotnet run -- --tag 芙宁娜 --count 3
+# 批量获取多张
+dotnet run -- --tag 原神 --count 5
 
-# 无限模式获取（Ctrl+C 停止）
+# 无限循环模式（Ctrl+C 停止）
 dotnet run -- --infinite
 
-# 交互式模式（默认）
+# 交互式 REPL
 dotnet run
 ```
 
@@ -31,88 +22,55 @@ dotnet run
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `--tag <tag>` | 获取指定标签的图片（支持空格、`&`、`\|` 分隔多个标签） | 无（交互式模式） |
+| `--tag <tag>` | 图片标签，支持空格/\`&\`/\`\|\`分隔多标签（不传则进入交互模式） | 无 |
 | `--count <n>` | 获取图片数量 | 1 |
-| `--infinite` | 无限循环模式，Ctrl+C 停止 | 关闭 |
+| `--infinite` | 无限循环模式 | 关闭 |
 | `--interval <ms>` | 无限模式请求间隔（毫秒） | 1500 |
-| `--quiet` | 不显示图片元数据（标题、作者等） | 显示 |
-| `--help` | 显示帮助信息 | - |
+| `--quiet` | 隐藏元数据输出 | 显示 |
+| `--save` | 将当前配置保存到 config.json | 不保存 |
+| `--output <dir>` | 自定义输出目录（覆盖配置） | `cache/` |
+| `--help` | 显示帮助 | - |
 
 ## 使用示例
 
-### 单张获取
+### 单张/批量
 
 ```bash
+# 单张
 dotnet run -- --tag 原神
-```
 
-输出：
-```
-LoliconSetuBot v1.1
-
-  📦 标签: 原神
-
-  ⏳ 请求中…
-┌──────────────────────────────────────────────────────┐
-│ 标题: 妮露~                                          │
-│ 作者: 冰冻鱼粽                                       │
-│ PID: 100927538                                       │
-│ 尺寸: 1127x2028                                      │
-└──────────────────────────────────────────────────────┘
-
-  ⬇️ 1.0MB / 3.7MB (27%): 27%
-  ⬇️ 3.5MB / 3.7MB (94%): 94%
-  ✅ 下载完成 (3786 KB) · JPEG
-
-  ✅ 完成！
-```
-
-### 批量获取
-
-```bash
-# 获取 5 张「芙宁娜」标签图片
+# 多张
 dotnet run -- --tag 芙宁娜 --count 5
 
-# 多标签获取（原神 + 雷泽 + 纳西妲）
+# 多标签（满足所有标签）
 dotnet run -- --tag "原神 雷泽 纳西妲" --count 10
 ```
 
 ### 无限模式
 
 ```bash
-# 无限循环获取（Ctrl+C 停止）
+# 无限循环（Ctrl+C 停止）
 dotnet run -- --infinite
 
-# 自定义请求间隔（每 5 秒请求一次）
+# 自定义间隔
 dotnet run -- --infinite --interval 5000
 
-# 安静模式：不显示元数据，只显示进度
+# 安静模式（只显示进度条）
 dotnet run -- --tag 原神 --infinite --quiet
 ```
 
-### 交互式模式
-
-不传参数时进入交互式 REPL：
-
-```
-╔════════════════════════╦══════════════════════════╗
-║ 命令                     ║ 说明                      ║
-╠════════════════════════╬══════════════════════════╣
-║ 来张标签涩图           ║ 获取单张涩图              ║
-║ 无限涩图 / 循环        ║ 进入无限循环模式          ║
-║ exit                   ║ 退出程序                  ║
-╚════════════════════════╩══════════════════════════╝
-
-  > 来张原神涩图
-  > 来张 雷泽 芙宁娜 涩图
-  > 无限涩图
-  > exit
-```
-
-### 显示帮助
+### 配置持久化
 
 ```bash
-dotnet run -- --help
+# 修改配置并保存到 config.json
+dotnet run --tag 原神 --save
+```
+
+### 自定义输出目录
+
+```bash
+# 指定输出到 /tmp/pics 而不是 cache/
+dotnet run --tag 原神 --output /tmp/pics
 ```
 
 ## 配置
@@ -131,7 +89,9 @@ dotnet run -- --help
   "coolDown": 0,
   "r18": false,
   "proxy": "i.pixiv.re",
-  "size": "original"
+  "size": "original",
+  "outputDir": "",
+  "fallbackUrls": []
 }
 ```
 
@@ -148,19 +108,30 @@ dotnet run -- --help
 | `r18` | 启用 R18 |
 | `proxy` | 代理域名 |
 | `size` | 图片尺寸：`original` / `regular` / `small` / `mini` / `thumb` |
+| `outputDir` | 自定义输出目录（空字符串=默认 `cache/`） |
+| `fallbackUrls` | 备用 API 地址列表 |
+
+## 备用 API
+
+主 API 不可用时自动切换备用 API：
+
+- **anoSu** (`api.anosu.top`) — 支持 `tag`、`r18`、`size` 参数，返回原始图片
+- **jitsu** (`moe.jitsu.top`) — 返回原始图片
+
+备用 API 不返回图片元数据，仅作为下载源。
 
 ## 项目结构
 
 ```
 LoliconSetuBot.sln
 +-- LoliconSetuBot/
-    +-- Program.cs            # 控制台入口（CLI 参数 + REPL）
+    +-- Program.cs            # CLI 参数解析 + REPL
     +-- Models/
     |   +-- BotConfig.cs      # 配置模型
     |   +-- ApiModels.cs      # API 响应模型
     +-- Services/
-        +-- LoliconService.cs # 核心服务（请求、处理、缓存）
-    +-- cache/                # 本地图片缓存
+        +-- LoliconService.cs # API 请求、图片处理、缓存
+    +-- cache/                # 图片缓存目录
     +-- logs/                 # 日志文件
 ```
 

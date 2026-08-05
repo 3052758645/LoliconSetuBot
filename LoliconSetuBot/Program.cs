@@ -15,16 +15,26 @@ static class Program {
     private static readonly CancellationTokenSource _cts = new();
 
     private static void PrintHelp() {
-        AnsiConsole.MarkupLine("[bold]LoliconSetuBot v1.1[/]\n");
+        AnsiConsole.MarkupLine("[bold]LoliconSetuBot v1.2[/]\n");
         AnsiConsole.MarkupLine("[bold]用法:[/]\n");
         // 不用 Markup 输出 --tag 等内容，避免 Markup 解析冲突
-        Console.Write("  dotnet run -- --tag <tag> --count <n> --infinite --interval <ms> --quiet --help\n");
+        Console.Write("  dotnet run -- --tag <tag> --count <n> --infinite --interval <ms> --quiet --help --save --output <dir>\n");
         AnsiConsole.MarkupLine("[bold]参数:[/]\n");
         AnsiConsole.MarkupLine("  [cyan]--tag <tag>[/]         获取指定标签的图片（不传则进入交互模式）");
         AnsiConsole.MarkupLine("  [cyan]--count <n>[/]          获取图片数量，默认 [dim]1[/]");
         AnsiConsole.MarkupLine("  [cyan]--infinite[/]          无限循环模式，Ctrl+C 停止");
         AnsiConsole.MarkupLine("  [cyan]--interval <ms>[/]     无限模式请求间隔（毫秒），默认 [dim]1500[/]");
         AnsiConsole.MarkupLine("  [cyan]--quiet[/]             不显示图片元数据（标题、作者等）");
+        AnsiConsole.MarkupLine("  [cyan]--save[/]              修改配置后保存到 config.json");
+        AnsiConsole.MarkupLine("  [cyan]--output <dir>[/]      图片输出目录（覆盖 config.json 中的 outputDir）");
+        AnsiConsole.MarkupLine("  [cyan]--r18[/]               启用 R18 模式");
+        AnsiConsole.MarkupLine("  [cyan]--no-r18[/]             禁用 R18");
+        AnsiConsole.MarkupLine("  [cyan]--flip-h[/]             水平翻转图片");
+        AnsiConsole.MarkupLine("  [cyan]--flip-v[/]             垂直翻转图片");
+        AnsiConsole.MarkupLine("  [cyan]--exclude-ai[/]         排除 AI 生成图");
+        AnsiConsole.MarkupLine("  [cyan]--no-exclude-ai[/]      不排除 AI 生成图");
+        AnsiConsole.MarkupLine("  [cyan]--size <size>[/]        图片尺寸：original/regular/small/mini/thumb");
+        AnsiConsole.MarkupLine("  [cyan]--proxy <proxy>[/]       代理域名（默认 i.pixiv.re）");
         AnsiConsole.MarkupLine("  [cyan]--help[/]              显示此帮助信息\n");
     }
 
@@ -44,6 +54,8 @@ static class Program {
         bool infinite = false;
         int interval = 1500;
         bool quiet = false;
+        bool save = false;
+        string? outputDirOverride = null;
 
         for (int i = 0; i < args.Length; i++) {
             switch (args[i]) {
@@ -61,6 +73,12 @@ static class Program {
                     break;
                 case "--quiet":
                     quiet = true;
+                    break;
+                case "--save":
+                    save = true;
+                    break;
+                case "--output":
+                    outputDirOverride = args[++i];
                     break;
                 default:
                     Log.Logger = new LoggerConfiguration()
@@ -85,9 +103,17 @@ static class Program {
 
         try {
             var config = BotConfig.Load("config.json");
+            config.ValidateAndFix();
             Log.Information("配置已加载: r18={R18}, size={Size}, proxy={Proxy}", config.R18, config.Size, config.Proxy);
 
-            using var service = new LoliconService();
+            // 输出目录：CLI --output 优先级高于 config.json
+            var effectiveOutputDir = !string.IsNullOrWhiteSpace(outputDirOverride) ? outputDirOverride : config.OutputDir;
+            Log.Information("输出目录: {Dir}", string.IsNullOrWhiteSpace(effectiveOutputDir) ? "cache/" : effectiveOutputDir);
+
+            using var service = new LoliconService(
+                outputDir: effectiveOutputDir,
+                fallbackUrls: config.FallbackUrls
+            );
             service.CleanCache(keep: 50);
 
             string groupId = config.Enabled ? "default" : "disabled";
@@ -116,6 +142,13 @@ static class Program {
                 // 交互模式
                 DrawCommands();
                 await RunInteractiveMode(config, cooldowns, groupId, service);
+            }
+
+            // 保存配置
+            if (save) {
+                config.Save("config.json");
+                AnsiConsole.MarkupLine("[green]  ✅ 配置已保存到 config.json[/]");
+                Log.Information("配置已保存。");
             }
 
             AnsiConsole.MarkupLine("\n[dim]  再见！[/]");
@@ -309,9 +342,9 @@ static class Program {
     }
 
     private static async Task DownloadWithProgress(LoliconService service, LoliconData data, BotConfig config, CancellationToken ct) {
-        byte[] bytes;
+        byte[] resultBytes;
         try {
-            bytes = await AnsiConsole.Progress().StartAsync(async ctx => {
+            resultBytes = await AnsiConsole.Progress().StartAsync(async ctx => {
                 var task = ctx.AddTask("⬇️ 下载中...");
                 task.MaxValue = 100;
                 task.StartTask();
@@ -319,7 +352,7 @@ static class Program {
                 var downloadedBytes = 0L;
                 var totalBytes = 0L;
 
-                var bytes = await service.DownloadImageAsync(data, config, ct, new Progress<(long loaded, long total)>(tuple => {
+                var imageBytes = await service.DownloadImageAsync(data, config, ct, new Progress<(long loaded, long total)>(tuple => {
                     downloadedBytes = tuple.loaded;
                     totalBytes = tuple.total;
                     if (totalBytes > 0) {
@@ -332,22 +365,18 @@ static class Program {
                 }));
 
                 task.Value = 100;
-                if (totalBytes > 0) {
-                    task.Description = $"✅ 下载完成 ({downloadedBytes / (1024.0 * 1024.0):F1}MB)";
-                } else {
-                    task.Description = $"✅ 下载完成 ({downloadedBytes / (1024.0 * 1024.0):F1}MB)";
-                }
+                task.Description = $"✅ 下载完成 ({downloadedBytes / (1024.0 * 1024.0):F1}MB)";
                 task.StopTask();
-                return bytes;
+                return imageBytes;
             });
         } catch (OperationCanceledException) {
             throw;
         } catch (Exception ex) {
             throw new InvalidOperationException($"下载失败: {ex.Message}", ex);
         }
-        var fmt = bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 ? "JPEG" :
-                  bytes.Length >= 8 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47 ? "PNG" : "未知";
-        var kb = bytes.Length / 1024;
+        var fmt = resultBytes.Length >= 3 && resultBytes[0] == 0xFF && resultBytes[1] == 0xD8 ? "JPEG" :
+                  resultBytes.Length >= 8 && resultBytes[0] == 0x89 && resultBytes[1] == 0x50 && resultBytes[2] == 0x4E && resultBytes[3] == 0x47 ? "PNG" : "未知";
+        var kb = resultBytes.Length / 1024;
         AnsiConsole.MarkupLine($"[green]  ✅ 下载完成[/] [dim]({kb} KB) · {fmt}[/]");
     }
 

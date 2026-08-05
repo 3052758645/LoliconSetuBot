@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "showInfo": true,
+  "excludeAI": true,
+  "flipHorizontal": true,
+  "flipVertical": false,
+  "autoRevoke": false,
+  "revokeDelay": 5000,
+  "coolDown": 0,
+  "r18": false,
+  "proxy": "i.pixiv.re",
+  "size": "original"
+}

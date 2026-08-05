@@ -64,14 +64,53 @@ public sealed class BotConfig {
     public string Size { get; set; } = "original";
 
     /// <summary>
+    /// 自定义输出目录，为空则使用默认 cache/ 目录
+    /// </summary>
+    public string OutputDir { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 备用 API 地址列表，主 API 不可用时自动切换
+    /// </summary>
+    public List<string> FallbackUrls { get; set; } = new();
+
+    /// <summary>
     /// JSON 序列化选项：驼峰命名 + 忽略未知字段（未来新增字段时不会反序列化失败）
     /// </summary>
-    private static readonly JsonSerializerOptions JsonOpts = new() {
+    public static readonly JsonSerializerOptions JsonOpts = new() {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true,
         // 修复：忽略配置中未来的新字段，避免反序列化失败
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
+
+    /// <summary>
+    /// 支持的尺寸列表
+    /// </summary>
+    private static readonly HashSet<string> ValidSizes = new(StringComparer.OrdinalIgnoreCase) {
+        "original", "regular", "small", "mini", "thumb"
+    };
+
+    /// <summary>
+    /// 校验配置项，无效值返回修正后的值并输出警告
+    /// </summary>
+    public void ValidateAndFix() {
+        // 尺寸校验
+        if (!string.IsNullOrEmpty(Size) && !ValidSizes.Contains(Size)) {
+            Console.Error.WriteLine($"⚠️ 无效的 size 值: '{Size}'，已回退到 'original'");
+            Size = "original";
+        }
+        // 输出目录校验
+        if (!string.IsNullOrWhiteSpace(OutputDir)) {
+            try {
+                Directory.CreateDirectory(OutputDir);
+            } catch (IOException ex) {
+                Console.Error.WriteLine($"⚠️ 输出目录创建失败: {ex.Message}，使用默认 cache/");
+                OutputDir = string.Empty;
+            }
+        }
+    }
+
+    private static string Escape(string s) => s.Replace("[", "[[]").Replace("]", "[]]");
 
     /// <summary>
     /// 从文件加载配置：从指定路径加载配置文件，如果文件不存在则创建默认配置

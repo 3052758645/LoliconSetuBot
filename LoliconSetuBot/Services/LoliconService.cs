@@ -27,12 +27,16 @@ public sealed class LoliconService : IDisposable {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         NumberHandling = JsonNumberHandling.AllowReadingFromString
     };
+    // 备用 API 地址列表
+    private readonly List<string> _fallbackUrls;
 
     /// <summary>
     /// 构造函数：服务内部管理 HttpClient 生命周期
     /// 修复：HttpClient 不再由外部传入（避免 using 语义错误），由本类负责创建和释放
     /// </summary>
-    public LoliconService() {
+    /// <param name="outputDir">自定义输出目录，为空则使用默认 cache/</param>
+    /// <param name="fallbackUrls">备用 API 地址列表，主 API 失败时自动切换</param>
+    public LoliconService(string? outputDir = null, List<string>? fallbackUrls = null) {
         // 跨平台：用 SocketsHttpHandler 替代 ServicePointManager（已在 .NET 10 标记过时，Linux 行为不一致）
         var handler = new SocketsHttpHandler {
             PooledConnectionLifetime = TimeSpan.FromMinutes(15),
@@ -41,12 +45,18 @@ public sealed class LoliconService : IDisposable {
         _http = new HttpClient(handler, disposeHandler: true) {
             Timeout = TimeSpan.FromSeconds(60),
             DefaultRequestHeaders = {
-                UserAgent = { new("LoliconSetuBot", "1.1") }
+                UserAgent = { new("LoliconSetuBot", "1.2") }
             }
         };
 
-        _cacheDir = Path.Combine(AppContext.BaseDirectory, "cache");
+        if (!string.IsNullOrWhiteSpace(outputDir)) {
+            _cacheDir = outputDir;
+        } else {
+            _cacheDir = Path.Combine(AppContext.BaseDirectory, "cache");
+        }
         Directory.CreateDirectory(_cacheDir);
+
+        _fallbackUrls = fallbackUrls ?? new List<string>();
     }
 
     /// <summary>
@@ -123,8 +133,24 @@ public sealed class LoliconService : IDisposable {
 
     /// <summary>
     /// 执行解析逻辑（不含重试，仅请求 API，不下载图片）
+    /// 主 API 失败时自动尝试备用 API
     /// </summary>
     private async Task<SetuResult> ExecuteResolve(string tag, BotConfig config, CancellationToken ct) {
+        try {
+            return await ExecuteMainResolve(tag, config, ct);
+        } catch (Exception ex) {
+            Log.Warning(ex, "主 API 请求失败 ({Message})，尝试备用 API...", ex.Message);
+            if (_fallbackUrls.Count > 0) {
+                return await ExecuteFallbackResolve(tag, config, ct);
+            }
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 通过主 API 解析（不含重试）
+    /// </summary>
+    private async Task<SetuResult> ExecuteMainResolve(string tag, BotConfig config, CancellationToken ct) {
         var url = BuildUrl(tag, config);
         Log.Debug("请求 API: {Url}", url);
 
@@ -149,6 +175,132 @@ public sealed class LoliconService : IDisposable {
             ImageBytes = Array.Empty<byte>(), // 占位，下载时会覆盖
             InfoText = info
         };
+    }
+
+    /// <summary>
+    /// 通过 Pixiv ID 获取单张图片（lolicon.app v2 API 支持 pid 参数）
+    /// </summary>
+    private async Task<SetuResult> ExecuteFetchByPid(long pid, BotConfig config, CancellationToken ct) {
+        // 构建 PID 查询 URL：使用 pid 参数替代 tag
+        var url = BuildPidUrl(pid, config);
+        Log.Debug("请求 API (PID={Pid}): {Url}", pid, url);
+
+        var json = await _http.GetStringAsync(url, ct);
+        var resp = JsonSerializer.Deserialize<LoliconResponse>(json, JsonOpts);
+
+        if (!string.IsNullOrEmpty(resp?.Error))
+            throw new InvalidOperationException("API error: " + resp.Error);
+
+        if (resp?.Data == null || resp.Data.Count == 0)
+            throw new InvalidOperationException($"未找到 PID={pid} 的图片。");
+
+        var data = resp.Data[0];
+        var imageUrl = GetImageUrl(data, config.Size) ?? data.Urls.Original;
+        if (string.IsNullOrEmpty(imageUrl))
+            throw new InvalidOperationException("Image URL is empty.");
+
+        Log.Debug("下载图片 (PID={Pid}): {Url}", pid, imageUrl);
+        var rawBytes = await _http.GetByteArrayAsync(imageUrl, ct);
+
+        // 缓存
+        CacheImage(data.Title, data.Pid, rawBytes);
+
+        // 翻转处理
+        var processed = await ProcessImageAsync(rawBytes, config);
+
+        string info = config.ShowInfo ? FormatInfo(data) : string.Empty;
+
+        return new SetuResult {
+            Data = data,
+            ImageBytes = processed,
+            InfoText = info
+        };
+    }
+
+    /// <summary>
+    /// 通过 Pixiv ID 构建查询 URL
+    /// </summary>
+    private static string BuildPidUrl(long pid, BotConfig config) {
+        var parts = new List<string> {
+            "r18=" + (config.R18 ? "true" : "false"),
+            "size=" + Uri.EscapeDataString(config.Size),
+            "proxy=" + Uri.EscapeDataString(config.Proxy),
+            "excludeAI=" + (config.ExcludeAI ? "true" : "false"),
+            "pid=" + pid.ToString(),
+            "dsc=false"
+        };
+
+        return ApiUrl + "?" + string.Join("&", parts);
+    }
+
+    /// <summary>
+    /// 通过 Pixiv ID 直接获取图片信息
+    /// 注：lolicon.app v2 API 支持直接通过 PID 查询
+    /// </summary>
+    public async Task<SetuResult> FetchByPidAsync(long pid, BotConfig config, CancellationToken ct = default) {
+        for (int retry = 0; retry <= MaxRetries; retry++) {
+            try {
+                return await ExecuteFetchByPid(pid, config, ct);
+            } catch (OperationCanceledException) when (ct.IsCancellationRequested) {
+                throw;
+            } catch (Exception ex) when (retry < MaxRetries) {
+                await LogAndDelayAsync(retry, $"PID={pid} 请求失败: {ex.Message}");
+            }
+        }
+        throw new InvalidOperationException($"重试次数已达上限 (PID={pid})");
+    }
+
+    /// <summary>
+    /// 通过备用 API 获取图片（直接返回图片二进制，无元数据）
+    /// anoSu API 支持 tag、r18、size 等参数
+    /// </summary>
+    private async Task<SetuResult> ExecuteFallbackResolve(string tag, BotConfig config, CancellationToken ct) {
+        // anoSu API — 支持 tag、r18、size 参数
+        var targetUrl = !string.IsNullOrEmpty(tag)
+            ? $"https://api.anosu.top/api/?r18={config.R18}&tag={Uri.EscapeDataString(tag)}&size={Uri.EscapeDataString(config.Size)}"
+            : $"https://api.anosu.top/api/?r18={config.R18}&size={Uri.EscapeDataString(config.Size)}";
+
+        foreach (var url in new[] { targetUrl }) {
+            if (string.IsNullOrEmpty(url)) continue;
+
+            try {
+                Log.Information("尝试备用 API: {Url}", url);
+                var rawBytes = await _http.GetByteArrayAsync(url, ct);
+                if (rawBytes.Length == 0) {
+                    Log.Warning("备用 API 返回空图片: {Url}", url);
+                    continue;
+                }
+
+                // 构建元数据（备用 API 无元数据，使用默认值）
+                var fallbackData = new LoliconData {
+                    Title = $"[备用API] {tag ?? "随机"}",
+                    Author = "Fallback",
+                    Pid = -1,
+                    Width = 0,
+                    Height = 0,
+                    Tags = new(),
+                    Urls = new()
+                };
+
+                // 缓存
+                CacheImage(fallbackData.Title, fallbackData.Pid, rawBytes);
+
+                // 翻转处理
+                var processed = await ProcessImageAsync(rawBytes, config);
+                string info = config.ShowInfo ? FormatInfo(fallbackData) : string.Empty;
+
+                return new SetuResult {
+                    Data = fallbackData,
+                    ImageBytes = processed,
+                    InfoText = info
+                };
+            } catch (Exception ex) {
+                Log.Warning(ex, "备用 API 失败: {Url}", url);
+                // 继续尝试下一个
+            }
+        }
+
+        throw new InvalidOperationException("所有备用 API 均不可用。");
     }
 
     /// <summary>

@@ -1,0 +1,18 @@
+2026-08-06 11:41:52.474 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-06 11:41:52.581 +08:00 [INF] 输出目录: cache/
+2026-08-06 21:32:58.011 +08:00 [INF] 配置已加载: r18=true, size=regular, proxy=i.pixiv.re
+2026-08-06 21:32:58.108 +08:00 [INF] 输出目录: cache/
+2026-08-06 21:32:58.221 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=true&size=regular&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-06 21:33:00.577 +08:00 [WRN] 主 API 请求失败 (Image URL is empty.)，尝试备用 API...
+System.InvalidOperationException: Image URL is empty.
+   at LoliconSetuBot.Services.LoliconService.ExecuteMainResolve(String tag, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Services\LoliconService.cs:line 168
+   at LoliconSetuBot.Services.LoliconService.ExecuteResolve(String tag, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Services\LoliconService.cs:line 140
+2026-08-06 21:33:00.635 +08:00 [WRN] InvalidOperation 异常，不再重试: Image URL is empty.
+2026-08-06 21:33:00.658 +08:00 [ERR] 获取图片失败
+System.InvalidOperationException: Image URL is empty.
+   at LoliconSetuBot.Services.LoliconService.ExecuteMainResolve(String tag, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Services\LoliconService.cs:line 168
+   at LoliconSetuBot.Services.LoliconService.ExecuteResolve(String tag, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Services\LoliconService.cs:line 140
+   at LoliconSetuBot.Services.LoliconService.ExecuteResolve(String tag, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Services\LoliconService.cs:line 146
+   at LoliconSetuBot.Services.LoliconService.ResolveAsync(String tag, BotConfig config, CancellationToken ct) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Services\LoliconService.cs:line 69
+   at LoliconSetuBot.Program.RunSingleFetch(String tag, BotConfig config, Dictionary`2 cooldowns, String groupId, LoliconService service, Boolean quiet) in E:\Code\csharp\LoliconSetuBot\LoliconSetuBot\Program.cs:line 369
+2026-08-06 21:33:00.661 +08:00 [INF] 再见！

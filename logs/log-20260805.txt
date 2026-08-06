@@ -1,0 +1,14 @@
+2026-08-05 11:36:36.982 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-05 11:36:37.085 +08:00 [INF] 输出目录: cache/
+2026-08-05 11:36:37.233 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-05 11:36:40.851 +08:00 [DBG] 下载图片 (尝试): https://i.pixiv.re/img-original/img/2022/10/27/00/00/14/102257029_p0.jpg
+2026-08-05 11:36:43.743 +08:00 [INF] 再见！
+2026-08-05 11:36:47.914 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-05 11:36:47.993 +08:00 [INF] 输出目录: D:\UserData\Temp\hermes-verify-v1.2\output_test
+2026-08-05 11:36:48.148 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-05 11:36:50.164 +08:00 [DBG] 下载图片 (尝试): https://i.pixiv.re/img-original/img/2020/11/16/02/06/22/85701301_p0.jpg
+2026-08-05 11:36:59.686 +08:00 [INF] 再见！
+2026-08-05 11:39:23.264 +08:00 [INF] 配置已加载: r18=false, size=original, proxy=i.pixiv.re
+2026-08-05 11:39:23.347 +08:00 [INF] 输出目录: cache/
+2026-08-05 11:39:23.504 +08:00 [DBG] 请求 API: https://api.lolicon.app/setu/v2?r18=false&size=original&proxy=i.pixiv.re&excludeAI=true&dsc=false&tag=%E5%8E%9F%E7%A5%9E
+2026-08-05 11:39:26.135 +08:00 [DBG] 下载图片 (尝试): https://i.pixiv.re/img-original/img/2021/02/18/04/20/34/87860136_p0.jpg

@@ -63,6 +63,12 @@ static class Program {
         bool quiet = false;
         bool save = false;
         string? outputDirOverride = null;
+        bool r18Set = false, r18Value = false;
+        bool flipHSet = false, flipHValue = false;
+        bool flipVSet = false, flipVValue = false;
+        bool excludeAISet = false, excludeAIValue = false;
+        string? sizeOverride = null;
+        string? proxyOverride = null;
 
         for (int i = 0; i < args.Length; i++) {
             switch (args[i]) {
@@ -86,6 +92,30 @@ static class Program {
                     break;
                 case "--output":
                     outputDirOverride = args[++i];
+                    break;
+                case "--r18":
+                    r18Set = true; r18Value = true;
+                    break;
+                case "--no-r18":
+                    r18Set = true; r18Value = false;
+                    break;
+                case "--flip-h":
+                    flipHSet = true; flipHValue = true;
+                    break;
+                case "--flip-v":
+                    flipVSet = true; flipVValue = true;
+                    break;
+                case "--exclude-ai":
+                    excludeAISet = true; excludeAIValue = true;
+                    break;
+                case "--no-exclude-ai":
+                    excludeAISet = true; excludeAIValue = false;
+                    break;
+                case "--size":
+                    sizeOverride = args[++i];
+                    break;
+                case "--proxy":
+                    proxyOverride = args[++i];
                     break;
                 default:
                     Log.Logger = new LoggerConfiguration()
@@ -111,6 +141,15 @@ static class Program {
         try {
             var config = BotConfig.Load("config.json");
             config.ValidateAndFix();
+
+            // 应用 CLI 参数覆盖配置
+            if (r18Set) config.R18 = r18Value;
+            if (flipHSet) config.FlipHorizontal = flipHValue;
+            if (flipVSet) config.FlipVertical = flipVValue;
+            if (excludeAISet) config.ExcludeAI = excludeAIValue;
+            if (sizeOverride != null) config.Size = sizeOverride;
+            if (proxyOverride != null) config.Proxy = proxyOverride;
+
             Log.Information("配置已加载: r18={R18}, size={Size}, proxy={Proxy}", config.R18, config.Size, config.Proxy);
 
             // 输出目录：CLI --output 优先级高于 config.json
